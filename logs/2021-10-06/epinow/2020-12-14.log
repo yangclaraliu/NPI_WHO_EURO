@@ -1,0 +1,6 @@
+WARN [2021-10-06 09:20:41] epinow: There were 10 divergent transitions after warmup. See
+http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
+to find out why this is a problem and how to eliminate them. - 
+WARN [2021-10-06 09:20:41] epinow: Examine the pairs() plot to diagnose sampling problems
+ - 
+DEBUG [2021-10-06 10:34:53] epinow: Running in exact mode for 2000 samples (across 4 chains each with a warm up of 250 iterations each) and 334 time steps of which 0 are a forecast
