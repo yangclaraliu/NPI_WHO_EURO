@@ -155,6 +155,13 @@ cty_code <- countrycode::codelist %>%
          country.name.en != "Liechtenstein",
          country.name.en != "Vatican City")
 
+cty_code %>% 
+  pull(country.name.en)
+
+covidregionaldata::get_national_data(cty_code %>% 
+                                       pull(country.name.en), source = "who") %>% view()
+
+
 rt_estimates <- here("data","rt_estimates_2020-07-05.csv") %>% read.csv 
 
 rt_estimates %>% 

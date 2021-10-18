@@ -49,3 +49,12 @@ epinow(reported_cases = reported_cases,
        delays = delay_opts(incubation_period, reporting_delay),
        rt = rt_opts(prior = list(mean = 2, sd = 0.2)),
        stan = stan_opts(cores = 4))
+
+
+estimate_infections(reported_cases,
+                    generation_time = generation_time,
+                    delays = delay_opts(incubation_period, reporting_delay),
+                    rt = NULL, backcalc = backcalc_opts(),
+                    obs = obs_opts(scale = list(mean = 0.4, sd = 0.05)),
+                    horizon = 0
+)
