@@ -9,6 +9,7 @@ pacman::p_load(tidyverse,
                covidregionaldata)
 
 # WHO Europe and Cenral Asia contries
+# Add Israel and Malta
 cty_code <- countrycode::codelist %>% 
   dplyr::select(iso3c, region, country.name.en) %>% 
   filter(region == "Europe & Central Asia") %>% 
@@ -31,6 +32,7 @@ case_data <- covidregionaldata::get_national_data(cty, source = "who") %>%
   select(date, country, cases_new) %>% 
   filter(date < as.Date("2021-10-01"))
 
+# Plot example case data up to Oct 1st 2021
 case_data %>% 
   filter(country == cty[50]) %>% 
   ggplot() +
@@ -43,7 +45,7 @@ case_data %>%
   guides(col = guide_legend(title = "Country"))
 
 
-# Estimate Rt backcalc
+# Estimate Rt backcalc (EpiNow2 package)
 
 options(mc.cores = 4)
 
@@ -79,54 +81,79 @@ backcalc_cty$summarised %>%
   mutate(cty = cty[i]) %>% 
   write_csv(paste0("data/Rt_back/", cty[i], ".csv"))
 
-#backcalc_cty_np <- estimate_infections(reported_cases,
-#                                    generation_time = generation_time,
-#                                    delays = delay_opts(incubation_period, reporting_delay),
-#                                    rt = NULL, 
-#                                    backcalc = backcalc_opts(prior = "none"),
-#                                    obs = obs_opts(scale = list(mean = 0.4, sd = 0.05)),
-#                                    horizon = 0)
-#
-#backcalc_cty_np$summarised %>% 
-#  filter(variable == "R") %>% 
-#  mutate(cty = cty[i]) %>% 
-#  write_csv(paste0("data/Rt_back_np/", cty[i], ".csv"))
-
 }
 
-#Rt_back_cty(1)
 
-###
+
+### Run calaculation - takes ~ 8 hours (10 mins per country)
+
+# Rt_back_cty(1) # test code
 
 map(1:length(cty), Rt_back_cty)
+# Turkmenistan failed 
+
+# Do remaining counties 
+map(49:51, Rt_back_cty)
+
+# Create dataframe to use in analysis 
+
+format_rt <- function(i){
+
+read_csv(paste0("data/Rt_back/", list.files("data/Rt_back/"))[i]) %>% 
+  group_by(cty) %>% 
+  mutate(X1 = row_number()) %>% 
+  select(X1, country = cty, date, median, lower_90, upper_90, lower_50, upper_50)
+  }
+
+rt_euro <- map(1:length(list.files("data/Rt_back/")), format_rt) %>% 
+  bind_rows() %>% 
+  filter(date < as.Date("2021-10-01")) %>% 
+  ungroup()
+
+write_csv(rt_euro, "data/rt_estimates_2021-09-30.csv")
 
 
-new <- read_csv(paste0("data/Rt_back/", cty[2], ".csv")) %>% 
-  select(date, median, lower_90, upper_90) %>% 
-  mutate(cty = cty[2]) %>% 
-  mutate(Rt_method = "Back calculation")
 
-#new_np <- read_csv(paste0("data/Rt_back/", cty[1], ".csv")) %>% 
-#  select(date, median, lower_90, upper_90) %>% 
-#  mutate(cty = cty[1]) %>% 
-#  mutate(Rt_method = "Back calculation, no prior")
+### Function to plot all Rt comparison between analysis 
 
-old <- read_csv("data/rt_estimates_2020-07-05.csv") %>% 
-  filter(country == cty[2]) %>% 
-  select(date, median, lower_90, upper_90) %>% 
-  mutate(cty = cty[2]) %>% 
-  mutate(Rt_method = "Previous published")
+plot_rt_est <- function(i){
+  
+  # New Rt data
+  new <- read_csv(paste0("data/Rt_back/", cty[i], ".csv")) %>% 
+    select(date, median, lower_90, upper_90) %>% 
+    mutate(cty = cty[i]) %>% 
+    mutate(Rt_method = "Back calculation")
+  
+  #Rt data from pervious analysis
+  old <- read_csv("data/rt_estimates_2020-07-05.csv") %>% 
+    filter(country == cty[i]) %>% 
+    select(date, median, lower_90, upper_90) %>% 
+    mutate(cty = cty[i]) %>% 
+    mutate(Rt_method = "Previous published")
+  
+  # Plot comparison
+  bind_rows(new, old) %>% 
+    ggplot()+
+    geom_line(aes(x= date, y= median, color = Rt_method))+
+    geom_ribbon(aes(x= date, ymin = lower_90, ymax = upper_90, fill = Rt_method), alpha = 0.4)+
+    scale_x_date(date_breaks = "2 months", date_labels = "%b %y")+
+    scale_color_brewer(palette = "Set2")+
+    scale_fill_brewer(palette = "Set2")+
+    theme_minimal()+
+    labs(title = cty[i], x = "Date", y = "Rt")+
+    theme(legend.position = "bottom")
+  
+  ggsave(paste0("data/Rt_back_plot/", cty[i], ".png"),
+         width = 210,
+         height = 180,
+         dpi = 320,
+         units = "mm")
+  
+}
 
-bind_rows( new, old) %>% 
-  ggplot()+
-  geom_line(aes(x= date, y= median, color = Rt_method))+
-  geom_ribbon(aes(x= date, ymin = lower_90, ymax = upper_90, fill = Rt_method), alpha = 0.4)+
-  scale_x_date(date_breaks = "2 months", date_labels = "%b %y")+
-  scale_color_brewer(palette = "Set2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_minimal()+
-  labs(title = cty[2], x = "Date", y = "Rt")+
-  theme(legend.position = "bottom")
+# Plot example
+plot_rt_est(1)
 
-
+# Turkmenistan problem - need to mix this (Malta and Israel too)
+map(c(1:47, 49:51), plot_rt_est)
 
