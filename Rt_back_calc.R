@@ -8,33 +8,24 @@ pacman::p_load(tidyverse,
                lubridate,
                covidregionaldata)
 
-# WHO Europe and Cenral Asia contries
-# Add Israel and Malta
+# WHO Europe countries (52 - https://www.euro.who.int/en/countries) 
+## Turkmenistan removed due to no covid data 
+WHO_cty <- c("Albania","Andorra","Armenia","Austria","Azerbaijan","Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Georgia","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania","Luxembourg","Malta","Moldova","Monaco","Montenegro","Netherlands","North Macedonia","Norway","Poland","Portugal","Romania","Russia","San Marino","Serbia","Slovakia","Slovenia","Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine","United Kingdom","Uzbekistan")
+
+# Countries ISO3C code
 cty_code <- countrycode::codelist %>% 
-  dplyr::select(iso3c, region, country.name.en) %>% 
-  filter(region == "Europe & Central Asia") %>% 
-  filter(!is.na(region),
-         !is.na(iso3c)) %>% 
-  filter(country.name.en != "Åland Islands",
-         country.name.en != "Faroe Islands",
-         country.name.en != "Gibraltar",
-         country.name.en != "Greenland",
-         country.name.en != "Guernsey",
-         country.name.en != "Isle of Man",
-         country.name.en != "Jersey",
-         country.name.en != "Liechtenstein",
-         country.name.en != "Vatican City")
+  dplyr::select(iso3c, country.name.en) %>%
+  filter(!is.na(iso3c)) %>% 
+  filter(country.name.en %in% WHO_cty) 
 
-cty <- cty_code %>% 
-  pull(country.name.en) 
-
-case_data <- covidregionaldata::get_national_data(cty, source = "who") %>% 
+# Covid reported cases
+case_data <- covidregionaldata::get_national_data(WHO_cty, source = "who") %>% 
   select(date, country, cases_new) %>% 
   filter(date < as.Date("2021-10-01"))
 
 # Plot example case data up to Oct 1st 2021
 case_data %>% 
-  filter(country == cty[50]) %>% 
+  filter(country == WHO_cty[30]) %>% 
   ggplot() +
   aes(x = date, y = cases_new, col = country) +
   geom_line(alpha = 0.9) +
@@ -65,7 +56,7 @@ reporting_delay <- list(mean = convert_to_logmean(4, 1),
 Rt_back_cty <- function(i){
 
 reported_cases <- case_data %>% 
-  filter(country == cty[i]) %>% 
+  filter(country == WHO_cty[i]) %>% 
   select(date, confirm = cases_new)
 
 backcalc_cty <- estimate_infections(reported_cases,
@@ -78,8 +69,8 @@ backcalc_cty <- estimate_infections(reported_cases,
 
 backcalc_cty$summarised %>% 
   filter(variable == "R") %>% 
-  mutate(cty = cty[i]) %>% 
-  write_csv(paste0("data/Rt_back/", cty[i], ".csv"))
+  mutate(cty = WHO_cty[i]) %>% 
+  write_csv(paste0("data/Rt_back/", WHO_cty[i], ".csv"))
 
 }
 
@@ -89,29 +80,7 @@ backcalc_cty$summarised %>%
 
 # Rt_back_cty(1) # test code
 
-map(1:length(cty), Rt_back_cty)
-# Turkmenistan failed 
-
-# Do remaining counties 
-map(49:51, Rt_back_cty)
-
-# Create dataframe to use in analysis 
-
-format_rt <- function(i){
-
-read_csv(paste0("data/Rt_back/", list.files("data/Rt_back/"))[i]) %>% 
-  group_by(cty) %>% 
-  mutate(X1 = row_number()) %>% 
-  select(X1, country = cty, date, median, lower_90, upper_90, lower_50, upper_50)
-  }
-
-rt_euro <- map(1:length(list.files("data/Rt_back/")), format_rt) %>% 
-  bind_rows() %>% 
-  filter(date < as.Date("2021-10-01")) %>% 
-  ungroup()
-
-write_csv(rt_euro, "data/rt_estimates_2021-09-30.csv")
-
+map(1:length(WHO_cty), Rt_back_cty)
 
 
 ### Function to plot all Rt comparison between analysis 
@@ -119,16 +88,16 @@ write_csv(rt_euro, "data/rt_estimates_2021-09-30.csv")
 plot_rt_est <- function(i){
   
   # New Rt data
-  new <- read_csv(paste0("data/Rt_back/", cty[i], ".csv")) %>% 
+  new <- read_csv(paste0("data/Rt_back/", WHO_cty[i], ".csv")) %>% 
     select(date, median, lower_90, upper_90) %>% 
-    mutate(cty = cty[i]) %>% 
+    mutate(WHO_cty = WHO_cty[i]) %>% 
     mutate(Rt_method = "Back calculation")
   
   #Rt data from pervious analysis
   old <- read_csv("data/rt_estimates_2020-07-05.csv") %>% 
-    filter(country == cty[i]) %>% 
+    filter(country == WHO_cty[i]) %>% 
     select(date, median, lower_90, upper_90) %>% 
-    mutate(cty = cty[i]) %>% 
+    mutate(WHO_cty = WHO_cty[i]) %>% 
     mutate(Rt_method = "Previous published")
   
   # Plot comparison
@@ -140,10 +109,10 @@ plot_rt_est <- function(i){
     scale_color_brewer(palette = "Set2")+
     scale_fill_brewer(palette = "Set2")+
     theme_minimal()+
-    labs(title = cty[i], x = "Date", y = "Rt")+
+    labs(title = WHO_cty[i], x = "Date", y = "Rt")+
     theme(legend.position = "bottom")
   
-  ggsave(paste0("data/Rt_back_plot/", cty[i], ".png"),
+  ggsave(paste0("data/Rt_back_plot/", WHO_cty[i], ".png"),
          width = 210,
          height = 180,
          dpi = 320,
@@ -152,8 +121,26 @@ plot_rt_est <- function(i){
 }
 
 # Plot example
-plot_rt_est(1)
+#plot_rt_est(1)
 
-# Turkmenistan problem - need to mix this (Malta and Israel too)
-map(c(1:47, 49:51), plot_rt_est)
+# Plot and save all
+map(1:length(WHO_cty), plot_rt_est)
 
+
+
+# Create EURO dataframe to use in analysis 
+
+format_rt <- function(i){
+  
+  read_csv(paste0("data/Rt_back/", list.files("data/Rt_back/"))[i]) %>% 
+    group_by(cty) %>% 
+    mutate(X1 = row_number()) %>% 
+    select(X1, country = cty, date, median, lower_90, upper_90, lower_50, upper_50)
+}
+
+rt_euro <- map(1:length(list.files("data/Rt_back/")), format_rt) %>% 
+  bind_rows() %>% 
+  filter(date < as.Date("2021-10-01")) %>% 
+  ungroup()
+
+write_csv(rt_euro, "data/rt_EURO.csv")
