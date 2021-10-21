@@ -128,7 +128,7 @@ stringency  <- oxford_data %>%
               by = c("date" = "date_val"))
   
   seq(lubridate::ymd("2020-01-01"),
-      lubridate::ymd("2020-07-01"),
+      lubridate::ymd("2021-10-01"), # note this date 
       by = "day") %>% 
     enframe(., name = "ID", value = "date") %>% 
     mutate(date_val = as.numeric(date)) %>%
@@ -169,7 +169,8 @@ policy_data <-  oxford_data %>%
            Date = lubridate::ymd(Date)) %>%
     rename(cnt = CountryCode, date = Date) %>%
     pivot_wider(names_from = flag, values_from = value, values_fill = list(value = -1)) %>%
-  filter(policy_name != "M1") %>% view()
+  filter(policy_name != "M1") %>% 
+  filter(cnt != "MLT") %>% # Malta removed due to missing NPI data
   
     #filter(date <= "2020-06-22",
     #       policy_name != "M1",
@@ -197,7 +198,7 @@ policy_data <-  policy_data %>%
            all = map(data, ~all(is.na(.x$policy_value))) %>% unlist) %>% 
     group_by(missing) %>% 
     group_split() 
-  
+
   policy_data <-  policy_data[[2]] %>% 
     mutate(data = map(data, arrange, date),
            # missingness at the tails are replaced by the last or the next 
@@ -246,10 +247,10 @@ policy_data <-  policy_data %>%
                                      0)) 
   
   # Build other data sets
-  rt_estimates %<>% 
+  rt_estimates <-  rt_estimates %>% 
     mutate(cnt = countrycode(country, "country.name", "iso3c"),
            date = lubridate::ymd(date)) %>%
-    as_tibble
+    as_tibble()
   
   hsize <- UN_household[,c(3,4,17)] %>% 
     setNames(c("cnt","hh_size","multi_gen"))
@@ -282,7 +283,7 @@ policy_data <-  policy_data %>%
   #     filter(!is.na(region)) -> joined_data
   
   # Pivot to wide datasets and set factors
-  policy_data %>% 
+joined_hi <- policy_data %>% 
     dplyr::select(-c(policy_flag, 
                      change,
                      policy_value, 
@@ -297,9 +298,9 @@ policy_data <-  policy_data %>%
                 dplyr::select(-c(X1, country)),
               by = c("cnt", "date")) %>% 
     mutate_at(vars(policy_dic$policy_code),
-              ~factor(., ordered = T, levels = 0:1)) -> joined_hi
+              ~factor(., ordered = T, levels = 0:1)) 
   
-  policy_data %>% 
+joined_lo <- policy_data %>% 
     dplyr::select(-c(policy_flag, 
                      change,
                      policy_value, 
@@ -311,12 +312,12 @@ policy_data <-  policy_data %>%
               ~factor(., ordered = T), levels = 0:1) %>% 
     group_by(cnt, date) %>% 
     left_join(rt_estimates %>% 
-                dplyr::select(-c(X, country)),
+                dplyr::select(-c(X1, country)),
               by = c("cnt", "date")) %>% 
     mutate_at(vars(policy_dic$policy_code),
-              ~factor(., ordered = T, levels = 0:1)) -> joined_lo
+              ~factor(., ordered = T, levels = 0:1))
   
-  policy_data %>% 
+joined_mid <-  policy_data %>% 
     dplyr::select(-c(policy_flag, 
                      change,
                      policy_value_max,
@@ -325,7 +326,7 @@ policy_data <-  policy_data %>%
                      policy_value_lo)) %>% 
     pivot_wider(names_from = policy_name, values_from = policy_value) %>%
     left_join(rt_estimates %>% 
-                dplyr::select(-c(X, country)),
+                dplyr::select(-c(X1, country)),
               by = c("cnt", "date"))  %>%
     mutate_at(vars(policy_dic$policy_code),
               ~zoo::na.locf(.) %>% round) %>% #
@@ -334,7 +335,7 @@ policy_data <-  policy_data %>%
     mutate_at(vars(C4, C8),
               ~factor(., ordered = T, levels = 0:4))  %>%
     mutate_at(vars(C3, C5, C7, E1, E2, H1, H3),
-              ~factor(., ordered = T, levels = 0:2)) -> joined_mid
+              ~factor(., ordered = T, levels = 0:2))
   
   # joined_data_cov has country-level covariates for random effects model
   covariates <- hsize %>%
@@ -369,5 +370,3 @@ policy_data <-  policy_data %>%
                hi_cov = joined_hi_cov, lo_cov = joined_lo_cov, mid_cov = joined_mid_cov,
                stringency = stringency, policy_dic = policy_dic), 
           here("data", "joined_all_2.RDS"))
-
-
