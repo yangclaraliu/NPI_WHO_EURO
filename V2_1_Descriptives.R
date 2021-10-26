@@ -2,10 +2,14 @@ if(!exists("joined")) joined <- here("data", "joined_all.RDS") %>% readRDS
 if(!exists("who") | !exists("tags") | !exists("start")) here("extract_who.R") %>% source
 
 start <- start %>%
-  mutate(tag = "Turning\npoint", tag_date = as.Date("2020-04-06"), rk = paste0(rk,"\n"))
+  mutate(tag = "Turning\npoint", tag_date = as.Date("2020-04-06"), rk = paste0(rk,"\n")) %>% 
+  mutate(alpha = "Alpha becomes\ndominant variant", alpha_date = as.Date("2020-10-01")) %>% 
+  mutate(delta = "Delta becomes\ndominant variant", delta_date = as.Date("2021-05-01"))
 
+markers <- tibble(marker = factor(c("first", "alpha", "delta"), levels = c("first", "alpha", "delta"), labels = c("First case\ndetected", "Alpha becomes\ndominant variant", "Delta becomes\ndominant variant")),
+       date = c(as.Date("2020-01-20"), as.Date("2020-10-01"), as.Date("2021-05-01")))
 
-joined <- readRDS("data/joined_all_2.RDS")
+joined <-  readRDS("data/joined_all_3.RDS")
 
 policy_raw <- joined$policy_dic$policy_code
 
@@ -56,34 +60,31 @@ fig_counts <- counts_data %>%
                 color = variable)) +
   geom_step(size = 1.2) +
   facet_grid(scenario ~ lab) + 
-  xlim(as.Date("2020-01-01"), as.Date("2020-06-22")) + 
+  xlim(as.Date("2020-01-01"), as.Date("2021-09-30")) + 
   labs(x = "", y = "Proportion of countries in Region with NPI") +
   ggsci::scale_color_lancet(name = "Policy group", 
                             labels = c("Internal\nrestrictions\n",
                                        "Int'l travel \nrestrictions\n",
                                        "Economic \nmeasures\n",
                                        "Health systems\nactions"))+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%Y")+
   theme_bw() +
   theme(panel.grid = element_blank(),
         strip.background = element_rect(NA),
-        axis.text = element_text(size = 20),
-        axis.title = element_text(size = 25),
-        legend.text = element_text(size = 20),
-        legend.title = element_text(size = 20),
-        strip.text = element_text(size = 25),
+        axis.text = element_text(size = 15),
+        axis.title = element_text(size = 20),
+        legend.text = element_text(size = 15),
+        legend.title = element_text(size = 15),
+        strip.text = element_text(size = 20),
         legend.position = "bottom",
-        axis.text.x = element_text(angle = 90))+
-  geom_vline(data = start,
+        axis.text.x = element_text(angle = 0))+
+  geom_vline(data = markers,
              aes(xintercept =  date,
-                 linetype = rk),
-             size = 1.2)+
-  geom_vline(data = start,
-             aes(xintercept =  tag_date,
-                 linetype = tag),
-             size = 1.2) +
-  scale_linetype_manual(values = c(3,4), name  = "Epidemic\nprogression")
+                 linetype = marker))+
+  scale_linetype_manual(values = c(3,4,5), name  = "Epidemic\nprogression")
+  
 
- ggsave(filename = "figs/EURO_0/fig1.png",
+ ggsave(filename = "figs/EURO_0/fig1_v2.png",
         plot = fig_counts,
         width = 20,
         height = 10)

@@ -1,6 +1,6 @@
 #if(!exists("joined")) joined <- here("data", "joined_all.RDS") %>% readRDS
 
-joined <- readRDS("data/joined_all_2.RDS")
+joined <- readRDS("data/joined_all_3.RDS")
 
 policy_raw <- joined$hi %>% 
   colnames %>% 
@@ -45,10 +45,10 @@ hcd_data <- hcd_raw %>%
 
 # this is the significance boxes - quite manual
 sig_boxes <- list()
-sig_boxes[[1]] <- data.frame(xmin = c(1.45, 4.55, 8.45),
-                             xmax = c(4.45, 6.5, 13.5),
-                             ymin = c(-48, -48, -48),
-                             ymax = c(88, 73, 110))
+sig_boxes[[1]] <- data.frame(xmin = c(4.5, 0.5),
+                             xmax = c(13.5, 3.5),
+                             ymin = c(-7.5, -7.5),
+                             ymax = c(80, 47.5))
 p_max <- hclust_plot_max()
 p_max
 
