@@ -36,8 +36,8 @@ source(here("aicbic_select.R"))
 
 # recompile the datafile only if it doesn't already exist
 #if(!file.exists(here("data","joined_all.RDS"))){
-  oxford_data       <- OX_EURO_0 
-  rt_estimates      <- RT_EURO_0
+  oxford_data       <- OX_EURO_FULL 
+  rt_estimates      <- RT_EURO_FULL
   UN_household      <- here("data", "un_data_comp_size.rds") %>% readRDS %>% as_tibble
   covid19_pkg_data  <- here("data", "covid19_pkd_data_20200422.rds") %>% readRDS
   urban_rural       <- here("data", "UN_Total_Urban_Rural_2018.csv") %>% read_csv
@@ -48,7 +48,7 @@ source(here("aicbic_select.R"))
     mutate(marker = 1) %>%
     pivot_wider(names_from = Date,
                 values_from = marker) %>% 
-    pivot_longer(cols = starts_with("2020"), names_to = "Date") %>%
+    pivot_longer(cols = starts_with("20"), names_to = "Date") %>%
     group_by(Date) %>%
     summarise(value = sum(value, na.rm = T)) %>%
     mutate(Date = ymd(Date))
@@ -60,7 +60,7 @@ source(here("aicbic_select.R"))
     labs(x = "Date", y = "Number of countries with data") +
     cowplot::theme_cowplot() +
     theme(axis.text = element_text(size = 20),
-          axis.title = element_text(size = 26)) +
+          axis.title = element_text(size = 26))
  #   geom_vline(xintercept = as.Date("2020-06-22")) # Missingness begins
   
  # here("figs", "fig_missing_2.png") %>%
@@ -74,30 +74,44 @@ stringency  <- oxford_data %>%
     select(cnt, date, stringency) %>%
     # filter(date >= as.Date("2020-06-01")) %>% 
     pivot_wider(names_from = date, values_from = stringency) %>% 
-    pivot_longer(cols = starts_with("2020"),
+    pivot_longer(cols = starts_with("20"),
                  names_to = "date",
                  values_to = "stringency") %>% 
     mutate(date = lubridate::ymd(date)) %>% 
     arrange(date) %>% 
     group_by(cnt) %>% 
-    mutate(stringency = imputeTS::na_locf(stringency)) 
+    mutate(stringency = imputeTS::na_locf(stringency)) %>% 
+  mutate(VOC = if_else(date <= as.Date("2020-09-30"), "Original", "Variant")) %>% 
+  mutate(VOC = if_else(VOC == "Variant" & date >= as.Date("2020-10-01") & date <= as.Date("2021-04-30"), "Alpha", VOC)) %>% 
+  mutate(VOC = if_else(VOC == "Variant" & date >= as.Date("2021-05-01") & date <= as.Date("2021-09-30"), "Delta", VOC)) %>% 
+  mutate(VOC = factor(VOC, levels = c("Original", "Alpha", "Delta")))
   
+
+# Turn plot into facet 
   p_stringency <-  stringency %>%
     #filter(date <= "2020-06-22") %>% 
     mutate(region = "WHO EUROPE") %>%
     filter(!is.na(region)) %>% 
     ggplot(., aes(x = date, y = stringency, group = cnt)) + 
     geom_line(aes(color = region), alpha = 0.1) +
+    #facet_grid(~VOC, scales = "free_x")+
     #facet_wrap(~region, ncol = 4) +
     theme_cowplot() +
-    geom_smooth(aes(group = region, color = region, fill = region))+
+    geom_smooth(aes(group = VOC))+
+    geom_segment(x = as.Date("2020-10-01"), xend =as.Date("2020-10-01"),
+                 y = 0, yend = 90, linetype = "dashed") +
+    geom_segment(x = as.Date("2021-05-01"), xend =as.Date("2021-05-01"),
+                 y = 0, yend = 90, linetype = "dashed") +
+    annotate(geom = "text", x = as.Date("2020-10-01"), y= 95, label = "Alpha becomes\ndominant variant")+
+    annotate(geom = "text", x = as.Date("2021-05-01"), y= 95, label = "Delta becomes\ndominant variant")+
+    scale_x_date(date_breaks = "2 months", date_labels = "%b-%Y")+
     ggsci::scale_color_lancet()+
     ggsci::scale_fill_lancet()+
-    labs(x = "Date",
+    labs(x = "",
          y = "Stringency Index",
          color = "Region",
          fill = "Region")  +
-    theme(axis.text = element_text(size = 20),
+    theme(axis.text = element_text(size = 15),
           legend.position = "bottom")  
   
   ggsave(filename = "figs/EURO_0/stringency_region.png",
@@ -369,4 +383,4 @@ joined_mid <-  policy_data %>%
   saveRDS(list(hi = joined_hi, lo = joined_lo, mid = joined_mid,
                hi_cov = joined_hi_cov, lo_cov = joined_lo_cov, mid_cov = joined_mid_cov,
                stringency = stringency, policy_dic = policy_dic), 
-          here("data", "joined_all_2.RDS"))
+          here("data", "joined_all_3.RDS"))
