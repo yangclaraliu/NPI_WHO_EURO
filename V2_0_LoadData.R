@@ -81,8 +81,8 @@ stringency  <- oxford_data %>%
     arrange(date) %>% 
     group_by(cnt) %>% 
     mutate(stringency = imputeTS::na_locf(stringency)) %>% 
-  mutate(VOC = if_else(date <= as.Date("2020-09-30"), "Original", "Variant")) %>% 
-  mutate(VOC = if_else(VOC == "Variant" & date >= as.Date("2020-10-01") & date <= as.Date("2021-04-30"), "Alpha", VOC)) %>% 
+  mutate(VOC = if_else(date <= as.Date("2020-11-30"), "Original", "Variant")) %>% 
+  mutate(VOC = if_else(VOC == "Variant" & date >= as.Date("2020-12-01") & date <= as.Date("2021-04-30"), "Alpha", VOC)) %>% 
   mutate(VOC = if_else(VOC == "Variant" & date >= as.Date("2021-05-01") & date <= as.Date("2021-09-30"), "Delta", VOC)) %>% 
   mutate(VOC = factor(VOC, levels = c("Original", "Alpha", "Delta")))
   
@@ -98,11 +98,11 @@ stringency  <- oxford_data %>%
     #facet_wrap(~region, ncol = 4) +
     theme_cowplot() +
     geom_smooth(aes(group = VOC))+
-    geom_segment(x = as.Date("2020-10-01"), xend =as.Date("2020-10-01"),
+    geom_segment(x = as.Date("2020-12-01"), xend =as.Date("2020-12-01"),
                  y = 0, yend = 90, linetype = "dashed") +
     geom_segment(x = as.Date("2021-05-01"), xend =as.Date("2021-05-01"),
                  y = 0, yend = 90, linetype = "dashed") +
-    annotate(geom = "text", x = as.Date("2020-10-01"), y= 95, label = "Alpha becomes\ndominant variant")+
+    annotate(geom = "text", x = as.Date("2020-12-01"), y= 95, label = "Alpha becomes\ndominant variant")+
     annotate(geom = "text", x = as.Date("2021-05-01"), y= 95, label = "Delta becomes\ndominant variant")+
     scale_x_date(date_breaks = "2 months", date_labels = "%b-%Y")+
     ggsci::scale_color_lancet()+
