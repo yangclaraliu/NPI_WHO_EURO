@@ -35,6 +35,33 @@ data_low <- gen_regress_data(scen = "Low",  min_date = "2020-01-01", max_date = 
 data_mid <- gen_regress_data(scen = "Mid",  min_date = "2020-01-01", max_date = "2020-11-30")
 data_hi <- gen_regress_data(scen = "High",  min_date = "2020-01-01", max_date = "2020-11-30")
 
+## Full time series
+
+# Original virus
+#all_lags_low <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
+#find_lag() %>% 
+#  use_series("lag_diagnostic") %>% 
+#  mutate(region = "WHO Europe") %>%
+#  select(region, deviance, lags)
+
+all_lags_mid <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
+  find_lag() %>% 
+  use_series("lag_diagnostic") %>% 
+  mutate(region = "WHO Europe") %>%
+  select(region, deviance, lags)
+
+all_lags_hi  <- gen_regress_data(scen = "High", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
+  find_lag() %>% 
+  use_series("lag_diagnostic") %>% 
+  mutate(region = "WHO Europe") %>%
+  select(region, deviance, lags)
+
+VOC_full <- bind_rows(
+  #`Any effort scenario` = all_lags_low,
+  `Multilevel effort scenario` = all_lags_mid, 
+  `Maximum effort scenario` = all_lags_hi, 
+  .id = "scenario") %>%
+  mutate(VOC = "Full TS")
 
 # Original virus
 #all_lags_low <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2020-11-30") %>% 
@@ -60,7 +87,7 @@ VOC_original <- bind_rows(
           `Multilevel effort scenario` = all_lags_mid, 
           `Maximum effort scenario` = all_lags_hi, 
           .id = "scenario") %>%
-  mutate(VOC = "original")
+  mutate(VOC = "Original")
 
 # Alpha variant
 
@@ -87,7 +114,7 @@ VOC_alpha <- bind_rows(
                           `Multilevel effort scenario` = all_lags_mid, 
                           `Maximum effort scenario` = all_lags_hi, 
                           .id = "scenario") %>%
-  mutate(VOC = "alpha")
+  mutate(VOC = "Alpha")
 
 # Delta variant 
 
@@ -114,14 +141,15 @@ VOC_delta <- bind_rows(
                           `Multilevel effort scenario` = all_lags_mid, 
                           `Maximum effort scenario` = all_lags_hi, 
                           .id = "scenario") %>%
-  mutate(VOC = "delta")
+  mutate(VOC = "Delta")
 
-deviance_data <- bind_rows(VOC_original, VOC_alpha, VOC_delta) %>% 
-  mutate(VOC = factor(VOC, levels = c("original", "alpha", "delta")))
+deviance_data <- bind_rows(VOC_full, VOC_original, VOC_alpha, VOC_delta) %>% 
+  mutate(VOC = factor(VOC, levels = c("Full TS", "Original", "Alpha", "Delta")))
 
 deviance_data %>% 
   ggplot(aes(x = lags, y = deviance, group = scenario, color = scenario)) +
   facet_grid(rows = vars(VOC), scales = "free_y") +
+  #ggh4x::facet_nested(scen ~ VOC + criterion) +
   geom_line(size = 1.2)+
   cowplot::theme_cowplot() +
   theme(axis.text    = element_text(size = 20),
@@ -141,7 +169,6 @@ deviance_data %>%
        y = "Deviance",
        color = "Scenarios")+
   scale_color_nejm()
-
 
 ggsave(filename = here("figs/EURO_0", "fig3.png"),
        width = 15, 
