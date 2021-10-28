@@ -9,7 +9,10 @@ start <- start %>%
 markers <- tibble(marker = factor(c("first", "alpha", "delta"), levels = c("first", "alpha", "delta"), labels = c("First case\ndetected", "Alpha becomes\ndominant variant", "Delta becomes\ndominant variant")),
        date = c(as.Date("2020-01-20"), as.Date("2020-12-01"), as.Date("2021-05-01")))
 
-joined <-  readRDS("data/joined_all_3.RDS")
+joined <-  readRDS("data/joined_all_3.RDS") %>% 
+  colnames %>% 
+  str_subset("[A-Z][0-9]") %>%
+  .[!.%in% c("M1","E3","E4","H4","H5")] # remove NPIs not considered
 
 policy_raw <- joined$policy_dic$policy_code
 
