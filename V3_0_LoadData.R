@@ -116,11 +116,47 @@ p_stringency <-  stringency %>%
   theme(axis.text = element_text(size = 15),
         legend.position = "bottom")  
 
-ggsave(filename = "figs/EURO_0/stringency_region.png",
+ggsave(filename = "figs/EURO_1/stringency_region.png",
        plot = p_stringency,
-       width = 15,height = 10)
+       width = 15, 
+       height = 10)
 
+# Plot vaccine data 
 
+vaccine_data %>% 
+  group_by(date) %>% 
+  summarise(mean = mean(V1)) %>% 
+  ggplot()+
+  geom_line(aes(x=date, y= mean ))
+
+vaccine_data %>%   
+  mutate(region = "WHO EUROPE") %>%
+  ggplot(., aes(x = date, y = V1, group = cnt)) + 
+  geom_line(aes(color = region), alpha = 0.1) +
+  #facet_grid(~VOC, scales = "free_x")+
+  #facet_wrap(~region, ncol = 4) +
+  theme_cowplot() +
+  geom_smooth(aes(group = region))+
+  geom_segment(x = as.Date("2020-12-01"), xend =as.Date("2020-12-01"),
+               y = 0, yend = 90, linetype = "dashed") +
+  geom_segment(x = as.Date("2021-05-01"), xend =as.Date("2021-05-01"),
+               y = 0, yend = 90, linetype = "dashed") +
+  annotate(geom = "text", x = as.Date("2020-12-01"), y= 95, label = "Alpha becomes\ndominant variant")+
+  annotate(geom = "text", x = as.Date("2021-05-01"), y= 95, label = "Delta becomes\ndominant variant")+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b-%Y")+
+  ggsci::scale_color_lancet()+
+  ggsci::scale_fill_lancet()+
+  labs(x = "",
+       y = "Proportion of population with at least 1 dose",
+       color = "Region",
+       fill = "Region")  +
+  theme(axis.text = element_text(size = 15),
+        legend.position = "bottom")  
+
+ggsave(filename = "figs/EURO_1/vaccine_region.png",
+       width = 15, 
+       height = 10)
+  
 
 # Build policy_dic, lookup tibble of policy codes and names 
 policy_dic <- colnames(oxford_data) %>% 
@@ -142,7 +178,9 @@ policy_dic <- colnames(oxford_data) %>%
                            paste0("E", 1:4) ~ "Economic Response  ",
                          policy_code %in%
                            paste0("H", 1:5) ~ "Public Health & Health System Response  "),
-         lab = gsub("\\.", " ", policy_name)) %>% 
+         lab = gsub("\\.", " ", policy_name))#
+
+policy_dic_V <- policy_dic %>% 
   add_row(policy_code = "V1", policy_name = "Proportion.at.least.one.dose", policy_max = 100, cat = "Vaccination ", lab = "Proportion 1 dose")
 
 # Build policy_data
@@ -287,6 +325,7 @@ joined_hi <- policy_data %>%
   left_join(vaccine_data %>% 
               dplyr::select(-c(X1, country)),
             by = c("cnt", "date")) %>% 
+  mutate(V1 = replace_na(V1, 0)) %>% # Fill NAs with 0 (prior to first vaccination)
   left_join(rt_estimates %>% 
               dplyr::select(-c(X1, country)),
             by = c("cnt", "date")) %>% 
@@ -331,35 +370,9 @@ joined_mid <-  policy_data %>%
             ~factor(., ordered = T, levels = 0:2))
 
 # joined_data_cov has country-level covariates for random effects model
-covariates <- hsize %>%
-  full_join(pop, by = "cnt") %>% 
-  full_join(urban, by = "cnt") %>% 
-  drop_na() %>%
-  filter(cnt %in% unique(joined_mid$cnt)) %>%
-  mutate_at(vars(-cnt), .funs = function(x) ntile(x, 5)) %>%
-  mutate_at(vars(hh_size, multi_gen, pop_65, pop_density, pop_death_rate, urban),
-            ~factor(., ordered = T))
 
-joined_mid_cov <- covariates %>% 
-  full_join(joined_mid, by = "cnt") %>%
-  drop_na(colnames(covariates))
 
-joined_hi_cov <- covariates %>% 
-  full_join(joined_hi, by = "cnt") %>%
-  drop_na(colnames(covariates))
-
-joined_lo_cov <- covariates %>% 
-  full_join(joined_lo, by = "cnt") %>%
-  drop_na(colnames(covariates))
-
-joined_data_cov <- covariates %>% 
-  full_join(joined_mid, by = "cnt") %>%
-  drop_na(colnames(covariates)) %>% 
-  left_join(covid19_pkg_data %>% 
-              select(cnt, date, walking, driving, transit),
-            by = c("date", "cnt"))
-
-saveRDS(list(hi = joined_hi, lo = joined_lo, mid = joined_mid,
-             hi_cov = joined_hi_cov, lo_cov = joined_lo_cov, mid_cov = joined_mid_cov,
-             stringency = stringency, policy_dic = policy_dic), 
-        here("data", "joined_all_3.RDS"))
+saveRDS(list(hi = joined_hi,
+             stringency = stringency,
+             policy_dic = policy_dic_V), 
+        here("data", "joined_all_V1.RDS"))
