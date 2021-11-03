@@ -1,10 +1,73 @@
-## Compare WHO vaccination data with Our world in numbers 
+## Vaccination data 
 
 # install.packages("MMWRweek")
 # library("MMWRweek")
 
-# Read in Our world in numbers vaccination data (Only total)
+# WHO Europe country names
+WHO_cty <- c("Albania","Andorra","Armenia","Austria","Azerbaijan","Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Georgia","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania","Luxembourg","Malta","Moldova","Monaco","Montenegro","Netherlands","North Macedonia","Norway","Poland","Portugal","Romania","Russia","San Marino","Serbia","Slovakia","Slovenia","Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine","United Kingdom","Uzbekistan")
+
+# Read in Our world in numbers raw vaccination data (Only total population)
 # 52 countries 
+win_data <- read_csv("data/owid-covid-data.csv")
+
+V1_data <- win_data %>% 
+  select(1,3,4, 42) %>% 
+  mutate(location = if_else(location == "Bosnia and Herzegovina", "Bosnia & Herzegovina", location)) %>% # Change naming of Bosnia to WHO format
+  filter(location %in% WHO_cty) %>% 
+  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
+  rename(V1 = people_vaccinated_per_hundred)
+
+# Vector of iso codes for 52 WHO Europe countries
+iso <- V1_data %>% 
+  select(iso_code) %>% 
+  distinct() %>% 
+  pull()
+
+# Function to interpolate NAs from after data of first vaccination
+clean_V1 <- function(i){
+
+tmp <- which(!is.na(V1_data %>% 
+                    filter(iso_code == iso[i]) %>% 
+                    select(V1) %>% 
+                    pull())) %>% 
+      first()
+
+tmp_date <- V1_data %>% 
+  filter(iso_code == iso[i]) %>% 
+  slice(tmp) %>% 
+  select(date) %>% 
+  pull()
+  
+vacc <- V1_data %>% 
+  filter(iso_code == iso[i]) %>% 
+  mutate(V1 = if_else(date < tmp_date, 0, V1)) %>% 
+  mutate(V1 = imputeTS::na_interpolation(V1))
+
+rm(tmp, tmp_date)
+
+return(vacc)
+
+}
+ # Bind all countrues together
+V1_cleaned <- map(1:length(iso), clean_V1) %>% 
+  bind_rows()
+
+# Save cleaned as Our World in Numbers vaccine data (2020-01-01 to 2021-09-30)
+V1_cleaned %>% 
+  mutate(max_cnt = max(V1)) %>% 
+  mutate(V1_adj = V1/max_cnt) %>%
+  select(cnt = iso_code, country = location, date, V_all = V1, V_all_adj = V1_adj) %>% 
+  group_by(country, cnt) %>% 
+  arrange(date) %>% 
+  complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day")) %>%
+  mutate_if(is.numeric, ~replace_na(., 0)) %>% 
+  ungroup() %>%
+  mutate(V_all = V_all/100) %>% 
+  write_csv(., "data/VAC_OWIN.csv")
+
+
+
+#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~
 
 # Read in WHO raw vaccination data (Age groups included)
 # Only 27 countries
@@ -42,54 +105,59 @@ tmp_cnt <- cov_raw %>%
   pull()
 
 complete_vac <- function(i){
-
-tmp_1 <- cov_raw %>% 
-  select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
-  filter(TargetGroup == "18-60yr") %>% 
-  mutate(max = max(cov_raw)) %>% 
-  mutate(V_18_60_adj = cov_raw/max) %>% 
-  rename(V_18_60 = cov_raw) %>% 
-  select(1, 2, 3, 5, 8)
-
-tmp_2 <- cov_raw %>% 
-  select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
-  filter(TargetGroup == "60+yr") %>% 
-  mutate(max = max(cov_raw)) %>% 
-  mutate(V_60_adj = cov_raw/max) %>% 
-  rename(V_60 = cov_raw) %>% 
-  select(1, 2, 3, 5, 8)
-
-tmp_3 <- cov_raw %>% 
-  select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
-  filter(TargetGroup == "total") %>% 
-  mutate(max = max(cov_raw)) %>% 
-  mutate(V_tot_adj = cov_raw/max) %>% 
-  rename(V_tot = cov_raw) %>% 
-  select(1, 2, 3, 5, 8)
-
-
-tmp_ts <- full_join(tmp_1, tmp_2, by = c("country", "cnt", "date")) %>% 
-  full_join(., tmp_3, by = c("country", "cnt", "date")) 
-
-tmp_ts %>% 
-  filter(country == tmp_cnt[i]) %>% 
-  complete(., date = seq.Date(min(date), as.Date("2021-09-30"), by = "day") ) %>% 
-
-  mutate_at( vars(contains("V_")),imputeTS::na_interpolation) %>% 
-  complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day") )  %>% 
-  mutate(country = tmp_cnt[i]) %>% 
-  mutate(cnt = countrycode(country,
-                           origin = "country.name", 
-                           destination = "iso3c")) %>% 
-  filter(date < as.Date("2021-10-01")) %>% 
-  mutate_if(is.numeric, ~replace_na(., 0)) 
+  
+  tmp_1 <- cov_raw %>% 
+    select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
+    filter(TargetGroup == "18-60yr") %>% 
+    mutate(max = max(cov_raw)) %>% 
+    mutate(V_18_60_adj = cov_raw/max) %>% 
+    rename(V_18_60 = cov_raw) %>% 
+    select(1, 2, 3, 5, 8)
+  
+  tmp_2 <- cov_raw %>% 
+    select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
+    filter(TargetGroup == "60+yr") %>% 
+    mutate(max = max(cov_raw)) %>% 
+    mutate(V_60_adj = cov_raw/max) %>% 
+    rename(V_60 = cov_raw) %>% 
+    select(1, 2, 3, 5, 8)
+  
+  tmp_3 <- cov_raw %>% 
+    select(date, country, cnt, TargetGroup, cov_raw, origin) %>% 
+    filter(TargetGroup == "total") %>% 
+    mutate(max = max(cov_raw)) %>% 
+    mutate(V_tot_adj = cov_raw/max) %>% 
+    rename(V_tot = cov_raw) %>% 
+    select(1, 2, 3, 5, 8)
+  
+  tmp_ts <- full_join(tmp_1, tmp_2, by = c("country", "cnt", "date")) %>% 
+    full_join(., tmp_3, by = c("country", "cnt", "date")) 
+  
+  tmp_ts %>% 
+    filter(country == tmp_cnt[i]) %>% 
+    complete(., date = seq.Date(min(date), as.Date("2021-09-30"), by = "day") ) %>% 
+    
+    mutate_at( vars(contains("V_")),imputeTS::na_interpolation) %>% 
+    complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day") )  %>% 
+    mutate(country = tmp_cnt[i]) %>% 
+    mutate(cnt = countrycode(country,
+                             origin = "country.name", 
+                             destination = "iso3c")) %>% 
+    filter(date < as.Date("2021-10-01")) %>% 
+    mutate_if(is.numeric, ~replace_na(., 0)) 
 }
 
+# Bind all countries together
 vac <- map(1:length(tmp_cnt), complete_vac) %>% 
   bind_rows() 
 
 # Save as .csv
 write_csv(vac, "data/VAC_WHO.csv")
+
+
+#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~
+
+# Compare datasets
 
 # Plot Age group vaccine coverage (proportion of population vaccinated)
 vac %>% 
@@ -109,7 +177,6 @@ ggsave(filename = "figs/EURO_2/fig_s_WHO_vac.png",
        height = 10)
 
 # Compare proprotion vaccinated between OWIN data and WHO vaccine data 
-
 # Read in OWIN data 
 OWIN <- read_csv("data/VAC_OWIN.csv") %>% 
   mutate(origin = "Our world in numbers") %>% 

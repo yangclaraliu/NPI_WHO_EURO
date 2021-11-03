@@ -37,3 +37,20 @@ oxford_EURO_all <- oxford_all %>%
 
 write_csv(oxford_EURO_all, "data/NPI_EURO.csv")
 
+## new oxford data 
+oxford_upt <- read_csv("https://raw.githubusercontent.com/OxCGRT/covid-policy-tracker/master/data/OxCGRT_latest.csv")
+
+oxford_upt %>% 
+  as_tibble() %>% 
+  left_join(., cty_code, by = c("CountryCode" = "iso3c")) %>% 
+  filter(country.name.en %in% WHO_cty) %>% 
+  select(-country.name.en) %>% 
+  filter(Jurisdiction == "NAT_TOTAL") %>% 
+  select(CountryName, CountryCode, Date, "C1_School closing", "C2_Workplace closing", "C3_Cancel public events", "C4_Restrictions on gatherings", "C5_Close public transport", "C6_Stay at home requirements","C7_Restrictions on internal movement", "C8_International travel controls", "E1_Income support", "E2_Debt/contract relief", "H1_Public information campaigns", "H2_Testing policy", "H3_Contact tracing", "H6_Facial Coverings", "StringencyIndex") %>% 
+  mutate(X = row_number()) %>% 
+  select(X, everything()) %>% 
+  mutate(Date = ymd(Date)) %>% 
+  rename(country = CountryName, cnt = CountryCode, date = Date) %>% 
+  filter(date < as.Date("2021-10-01")) %>% 
+  write_csv(., "data/NPI_OX.csv")
+  
