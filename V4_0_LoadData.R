@@ -46,8 +46,7 @@ rt_estimates      <- read_csv("data/rt_EURO.csv")
 # Build stringency_data from oxford_data
 stringency  <- oxford_data %>%
   as_tibble %>%
-  mutate(Date = lubridate::ymd(Date)) %>%
-  rename(cnt = CountryCode, date = Date, stringency = StringencyIndex) %>%
+  rename(stringency = StringencyIndex) %>%
   select(cnt, date, stringency) %>%
   pivot_wider(names_from = date, values_from = stringency) %>% 
   pivot_longer(cols = starts_with("20"),
@@ -125,7 +124,8 @@ policy_data_3 <-  policy_data_2 %>%
   mutate(policy_value_min = 0) %>% 
   select(country, cnt, date, policy_name, value, policy_value_min, policy_value_max) %>% 
   mutate(policy_value_hi = if_else(value < policy_value_max, 0, 1)) %>% 
-  mutate(policy_value_lo = if_else(value > 0, 1, 0))
+  mutate(policy_value_lo = if_else(value > 0, 1, 0)) %>% 
+  mutate(country = if_else(country == "Bosnia and Herzegovina", "Bosnia & Herzegovina", country))
 
 # Build other data sets
 rt_estimates <-  rt_estimates %>% 
@@ -160,18 +160,9 @@ joined_hi <- policy_data_3 %>%
             by = c("country", "cnt", "date")) %>% 
   left_join(rt_estimates %>% 
               dplyr::select(-X1),
-            by = c("country", "cnt", "date")) 
-
-# Any effort
-joined_lo <- policy_data_3 %>% 
-  select(-c(value, policy_value_min, policy_value_max, policy_value_hi)) %>% 
-  pivot_wider(names_from = policy_name, values_from = policy_value_lo) %>% 
-  group_by(cnt, date) %>% 
-  left_join(vaccine_data_join,
             by = c("country", "cnt", "date")) %>% 
-  left_join(rt_estimates %>% 
-              dplyr::select(-X1),
-            by = c("country", "cnt", "date")) 
+  ungroup()
+
 
 # Standardized between 0-1 effort
 joined_mid <- policy_data_3 %>% 
@@ -186,11 +177,52 @@ joined_mid <- policy_data_3 %>%
             by = c("country", "cnt", "date")) %>% 
   left_join(rt_estimates %>% 
               dplyr::select(-X1),
-            by = c("country", "cnt", "date"))
+            by = c("country", "cnt", "date")) %>% 
+  ungroup()
+
+
+# Max effort, Wild virus 
+joined_hi_W <- joined_hi %>%
+  ungroup() %>% 
+  filter(date <= as.Date("2020-11-30"))
+
+# Max effort, Alpha
+joined_hi_A <- joined_hi %>% 
+  ungroup() %>% 
+  filter(date > as.Date("2020-11-30")) %>% 
+  filter(date <= as.Date("2021-04-30"))
+
+# Max effort, Delta virus 
+joined_hi_D <- joined_hi %>% 
+  ungroup() %>% 
+  filter(date > as.Date("2021-04-30")) %>% 
+  filter(date <= as.Date("2021-09-30"))
+
+# Scaled effort, Wild virus 
+joined_mid_W <- joined_mid %>% 
+  ungroup() %>% 
+  filter(date <= as.Date("2020-11-30"))
+
+# Scaled effort, Alpha virus 
+joined_mid_A <- joined_mid %>% 
+  ungroup() %>% 
+  filter(date > as.Date("2020-11-30")) %>% 
+  filter(date <= as.Date("2021-04-30"))
+
+# Scaled effort, Delta virus 
+joined_mid_D <- joined_mid %>% 
+  ungroup() %>% 
+  filter(date > as.Date("2021-04-30")) %>% 
+  filter(date <= as.Date("2021-09-30"))
 
 
 # Save RDS
-saveRDS(list(hi = joined_hi, mid = joined_mid, lo = joined_lo,
+saveRDS(list(hi_W = joined_hi_W,
+             mid_W = joined_mid_W,
+             hi_A = joined_hi_A,
+             mid_A = joined_mid_A,
+             hi_D = joined_hi_D,
+             mid_D = joined_mid_D,
              stringency = stringency,
              policy_dic = policy_dic_V), 
         here("data", "joined_all_V4.RDS"))
