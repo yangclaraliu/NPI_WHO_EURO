@@ -3,11 +3,9 @@
 
 joined <- readRDS("data/joined_all_V4.RDS")
 
-# Full number of countries, no age stratification (original was called policy_raw_all)
-policy_raw <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
 
 # Reduced number of countries however age specific vaccination (original was called policy_raw_age)
-#policy_raw <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_18_60_adj", "V_60_adj", "V_tot_adj")
+policy_raw <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_18_60_adj", "V_60_adj", "V_tot_adj")
 
 policy_code <- joined$policy_dic$policy_code
 
@@ -17,23 +15,45 @@ country_list <- unique(joined$hi_W$cnt) %>%
   mutate(country_name = countrycode::countrycode(cnt, "iso3c", "country.name"),
          region = "WHO EUROPE") 
 
+
 cnt_remove <- joined$hi_W %>% 
   filter(is.na(V_18_60_adj)) %>% 
   distinct(country) %>% 
   pull()
 
-variables_remove_age <- c("V_18_60_adj", "V_60_adj", "V_tot_adj")
+joined$hi_W %>% 
+  filter(!country %in% cnt_remove) %>% 
+  select(-c("V_all_adj"))
+
+#variables_remove_age <- c("V_18_60_adj", "V_60_adj", "V_tot_adj")
 variables_remove_all <- c("V_all_adj")
 
 gen_regress_data <- function(scen){
   
-  if(scen == "High_W") tmp <- joined$hi_W
-  if(scen == "High_A") tmp <- joined$hi_A
-  if(scen == "High_D") tmp <- joined$hi_D
+  if(scen == "High_W") tmp <- joined$hi_W %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
+  
+  if(scen == "High_A") tmp <- joined$hi_A %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
+  
+  if(scen == "High_D") tmp <- joined$hi_D %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
+  
+  if(scen == "Mid_W") tmp <- joined$mid_W %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
+  
+  if(scen == "Mid_A") tmp <- joined$mid_A %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
+  
+  if(scen == "Mid_D") tmp <- joined$mid_D %>% 
+      filter(!country %in% cnt_remove) %>% 
+      select(-c("V_all_adj"))
 
-  if(scen == "Mid_W") tmp <- joined$mid_W
-  if(scen == "Mid_A") tmp <- joined$mid_A
-  if(scen == "Mid_D") tmp <- joined$mid_D
   
   tmp %>% 
     ungroup %>% 
@@ -49,176 +69,9 @@ gen_regress_data <- function(scen){
 regions_dic <- country_list$region %>% unique %>% sort
 
 
-## Full time series
-
-# Original virus
-#all_lags_low <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
-#find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-#all_lags_mid <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
-#  find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-all_lags_hi  <- gen_regress_data(scen = "High", min_date = "2020-01-01", max_date = "2021-09-30") %>% 
-  find_lag() %>% 
-  use_series("lag_diagnostic") %>% 
-  mutate(region = "WHO Europe") %>%
-  select(region, deviance, lags)
-
-VOC_full <- bind_rows(
-  #`Any effort scenario` = all_lags_low,
-  #  `Multilevel effort scenario` = all_lags_mid, 
-  `Maximum effort scenario` = all_lags_hi, 
-  .id = "scenario") %>%
-  mutate(VOC = "Full TS")
-
-# Original virus
-#all_lags_low <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2020-11-30") %>% 
-#find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-#all_lags_mid <- gen_regress_data(scen = "Mid", min_date = "2020-01-01", max_date = "2020-11-30") %>% 
-#  find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-all_lags_hi  <- gen_regress_data(scen = "High", min_date = "2020-01-01", max_date = "2020-11-30") %>% 
-  find_lag() %>% 
-  use_series("lag_diagnostic") %>% 
-  mutate(region = "WHO Europe") %>%
-  select(region, deviance, lags)
-
-VOC_original <- bind_rows(
-  #`Any effort scenario` = all_lags_low,
-  #  `Multilevel effort scenario` = all_lags_mid, 
-  `Maximum effort scenario` = all_lags_hi, 
-  .id = "scenario") %>%
-  mutate(VOC = "Original")
-
-# Alpha variant
-
-#all_lags_low <- gen_regress_data(scen = "Mid", min_date = "2020-12-01", max_date = "2021-04-30") %>% 
-#find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-#all_lags_mid <- gen_regress_data(scen = "Mid", min_date = "2020-12-01", max_date = "2021-04-30") %>% 
-#  find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-all_lags_hi  <- gen_regress_data(scen = "High", min_date = "2020-12-01", max_date = "2021-04-30") %>% 
-  find_lag() %>% 
-  use_series("lag_diagnostic") %>% 
-  mutate(region = "WHO Europe") %>%
-  select(region, deviance, lags)
-
-VOC_alpha <- bind_rows(
-  #`Any effort scenario` = all_lags_low,
-  #  `Multilevel effort scenario` = all_lags_mid, 
-  `Maximum effort scenario` = all_lags_hi, 
-  .id = "scenario") %>%
-  mutate(VOC = "Alpha")
-
-# Delta variant 
-
-#all_lags_low <- gen_regress_data(scen = "Low", min_date = "2021-05-01", max_date = "2021-09-30") %>% 
-#find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-#all_lags_mid <- gen_regress_data(scen = "Mid", min_date = "2021-05-01", max_date = "2021-09-30") %>% 
-#  find_lag() %>% 
-#  use_series("lag_diagnostic") %>% 
-#  mutate(region = "WHO Europe") %>%
-#  select(region, deviance, lags)
-
-all_lags_hi  <- gen_regress_data(scen = "High", min_date = "2021-05-01", max_date = "2021-09-30") %>% 
-  find_lag() %>% 
-  use_series("lag_diagnostic") %>% 
-  mutate(region = "WHO Europe") %>%
-  select(region, deviance, lags)
-
-VOC_delta <- bind_rows(
-  #`Any effort scenario` = all_lags_low,
-  #  `Multilevel effort scenario` = all_lags_mid, 
-  `Maximum effort scenario` = all_lags_hi, 
-  .id = "scenario") %>%
-  mutate(VOC = "Delta")
-
-deviance_data <- bind_rows(VOC_full, VOC_original, VOC_alpha, VOC_delta) %>% 
-  mutate(VOC = factor(VOC, levels = c("Full TS", "Original", "Alpha", "Delta")))
-
-deviance_data %>% 
-  ggplot(aes(x = lags, y = deviance, group = scenario, color = scenario)) +
-  facet_grid(rows = vars(VOC), scales = "free_y") +
-  #ggh4x::facet_nested(scen ~ VOC + criterion) +
-  geom_line(size = 1.2)+
-  cowplot::theme_cowplot() +
-  theme(axis.text    = element_text(size = 20),
-        axis.title   = element_text(size = 20),
-        legend.text  = element_text(size = 20),
-        legend.title = element_text(size = 20),
-        strip.text   = element_text(size = 20),
-        legend.position = "top",
-        strip.background = element_rect(fill=NA),
-        panel.border = element_rect(colour = "black", fill=NA, size=1))+
-  geom_vline(data = deviance_data %>% 
-               group_by(scenario, VOC) %>% 
-               top_n(-1, deviance) %>% 
-               select(lags), 
-             linetype = "dashed", aes(xintercept = lags, color = scenario)) + 
-  labs(x = "Temporal Lags",
-       y = "Deviance",
-       color = "Scenarios")+
-  scale_color_nejm()
-
-ggsave(filename = here("figs/EURO_1", "fig3.png"),
-       width = 15, 
-       height = 10)
-
-# already kinda did this, but let's double check
-
-#joined$policy_dic$policy_code %>% 
-#  .[!. %in% c("E3", "E4", "H4", "H5")] %>% 
-#   paste(., collapse = " + ") %>% 
-#   paste0("lag(median,", c(0, -1, -5, -10), ") ~ ",.) -> f
-#          
-# f %>% 
-#   map(as.formula) %>% 
-#   map(plm, data = data_hi, model = "within") -> g1
-# 
-# f %>% 
-#   map(as.formula) %>% 
-#   map(plm, data = data_hi, model = "random") -> g2
-# 
-# map2(g1, g2, phtest)
-
-# f <- f_lags[optim_lag_index]
-# g1 <- plm(as.formula(f), data = E, model = "within")
-# g2 <- plm(as.formula(f), data = E, model = "random")
-# phtest(g1,g2)
-# detect.lindep(g1)
-# punbalancedness(g1)
-
-
-#VOC_time <- tibble(min_date = as.Date(c("2020-01-01","2020-12-01","2021-05-01")),
-#                   max_date = as.Date(c("2020-11-30","2021-04-30","2021-09-30")),
-#                   VOC = c("Original", "Alpha", "Delta"))
-
+#All posible combinations
 expand.grid(scen = c("High_W", "High_A", "High_D", "Mid_W", "Mid_A", "Mid_D"), 
-            optim_lag = c(-1, -14)) %>% 
+            optim_lag = c(-1, -14, -28)) %>% 
   mutate(select = NA) -> res_tab -> res_tab_forward
 
 
@@ -231,15 +84,15 @@ pb <- progress::progress_bar$new(
 # Backward selection - all population vaccine data 
 for(i in 1:nrow(res_tab)){
   
-  data_tmp <- gen_regress_data(scen = res_tab$scen[i]) %>% 
-    select(-c(variables_remove_age))
+  data_tmp <- gen_regress_data(scen = res_tab$scen[i]) #%>% 
+    #select(-c(variables_remove_all))
   
   res_tab$select[i] <- list(aicbic_select(optim_lag = res_tab$optim_lag[i], 
                                           data = data_tmp))
   pb$tick()
 }
 
-save(res_tab, res_tab_forward, file = "results/res_tab_V4.rdata")
+save(res_tab, res_tab_forward, file = "results/res_tab_V4_lag28.rdata")
 
 
 chosen <- lapply(res_tab$select,"[[",3) %>% 
@@ -302,18 +155,16 @@ p_val <- p_val %>%
   bind_rows()
 
 
-p_val %>% 
-  filter(set == "10")
 # 
 lapply(lapply(res_tab$select,"[[",1),"[[","var_combo") -> tmp
 
-AIC_panel <- lapply(1:12, function(x) tmp[[x]] %>% do.call("rbind", .)) %>% # change 1:12 to the number of sets
+AIC_panel <- lapply(1:18, function(x) tmp[[x]] %>% do.call("rbind", .)) %>% # change 1:18 to the number of sets
   map(mutate, model = 1:n()) %>% 
   bind_rows(.id = "set") 
 
 lapply(lapply(res_tab$select,"[[",2),"[[","var_combo") -> tmp 
 
-BIC_panel <- lapply(1:12, function(x) tmp[[x]] %>% do.call("rbind", .)) %>% 
+BIC_panel <- lapply(1:18, function(x) tmp[[x]] %>% do.call("rbind", .)) %>% # change 1:18 to the number of sets
   map(mutate, model = 1:n()) %>% 
   bind_rows(.id = "set")
 
@@ -342,7 +193,8 @@ var_select_res <- chosen[chosen$criterion=="AIC",] %>%
               mutate(set = 1:n() %>% as.character),
             by = "set") %>% 
   mutate(lags = case_when(optim_lag == -1 ~ 1,
-                          optim_lag == -14 ~ 2),
+                          optim_lag == -14 ~ 2,
+                          optim_lag == -28 ~ 3),
          scen = factor(scen, 
                        levels = c("High_W","High_A", "High_D", "Mid_W", "Mid_A", "Mid_D"),
                        labels = c("Max. Effort - Wild virus",
@@ -350,20 +202,7 @@ var_select_res <- chosen[chosen$criterion=="AIC",] %>%
                                   "Max. Effort - Delta variant",
                                   "Multi-level Effort - Wild virus",
                                   "Multi-level Effort - Alpha variant",
-                                  "Multi-level Effort - Delta variant")))
-
-var_select_res %>%
-  left_join(p_val %>% 
-              separate(var, 
-                       sep = "\\.", 
-                       into = c("policy_code", "component")),
-            by = c("policy_code",
-                   "set",
-                   "criterion"))
-
-
-
-var_select_res %>%
+                                  "Multi-level Effort - Delta variant"))) %>%
   left_join(p_val,
             by = c("policy_code" = "var",
                    "set",
@@ -372,9 +211,11 @@ var_select_res %>%
   mutate(virus = case_when(grepl("Wild", scen) ~ "Wild",
                            grepl("Alpha", scen) ~ "Alpha",
                            grepl("Delta", scen) ~ "Delta")) %>% 
-  mutate(virus = factor(virus, levels = c("Wild", "Alpha", "Delta"))) %>% 
-  
-  ggplot(.)  +
+  mutate(virus = factor(virus, levels = c("Wild", "Alpha", "Delta")))
+
+
+var_select_res %>% 
+  ggplot()  +
   geom_rect(aes(xmin = lags-0.5,
                 ymin = var-0.5, 
                 xmax = lags+0.5,
@@ -382,7 +223,7 @@ var_select_res %>%
                 fill = value)) +
   geom_text(aes(x = lags,
                 y = var,
-                label = p_lab)) + 
+                label = p_lab))+
   # facet_grid(scen ~ max_date + criterion) +
   ggh4x::facet_nested(virus ~ effort + criterion) +
   geom_point(aes(x = 1, y = 5, color = cat), alpha = 0) +
@@ -392,7 +233,7 @@ var_select_res %>%
                                 '#33a02c',
                                 '#8856a7')) +
   geom_segment(data = data.frame(y = c(0.5, 0.5, 0.5),
-                                 yend = c(15.5, 15.5, 15.5),
+                                 yend = c(17.5, 17.5, 17.5),
                                  x = c(0.5, 1.5, 2.5),
                                  xend = c(0.5,1.5, 2.5)),
                aes(x = x, xend = xend, y = y, yend = yend)) +
@@ -403,14 +244,15 @@ var_select_res %>%
   #               aes(x = x, xend = xend, y = y, yend = yend)) +
   theme_cowplot() +
   # theme_bw() +
-  scale_y_continuous(breaks = seq(1,15,1),
+  scale_y_continuous(breaks = seq(1,17,1), # Number of variables 
                      labels = joined$policy_dic %>% 
                        filter(policy_code %in% policy_raw) %>% 
                        pull(lab),
                      trans = "reverse") +
-  scale_x_continuous(breaks = c(1,2),
-                     labels = c("-1", "-14")) +
-  theme(axis.text    = element_text(size = 12),
+  scale_x_continuous(breaks = c(1,2,3),
+                     labels = c("-1", "-14", "-28")) +
+  
+  theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 15),
         legend.text  = element_text(size = 12),
         legend.title = element_text(size = 15),
@@ -421,13 +263,14 @@ var_select_res %>%
                                              '#b2df8a',
                                              rep('#1f78b4',2),
                                              rep('#33a02c',4),
-                                             '#8856a7')),
+                                             rep('#8856a7',3))), # vaccination variables
         legend.box = "vertical",
         legend.box.just = "left",
         legend.margin=margin(),
         text = element_text(family = "Times New Roman"),
         strip.text.y = element_text(face = "italic"),
         strip.text = element_text(size = 20)) +
+          
   scale_fill_manual(values = c("snow2","darkgrey"),
                     labels = c("Variable Excluded","Variable Chosen")) +
   labs(x = "Temporal Lags", 
@@ -438,7 +281,7 @@ var_select_res %>%
                                                   size = 3),
                               nrow = 2))
 
-ggsave("figs/EURO_2/fig4_1.png",
+ggsave("figs/EURO_2/fig4_age.png",
        width = 15,
        height = 10) 
 
@@ -477,9 +320,9 @@ effect_data <- eff_size %>%
   mutate(x = estimate - 1.96*std.error,
          xend = estimate + 1.96*std.error,
          optim_lag = factor(optim_lag,
-                            levels = c(-1, -14),
-                            labels = c("1 day", "14 days")),
-
+                            levels = c(-1, -14, -28),
+                            labels = c("1 day", "14 days", "28 days")),
+         
          scen = factor(scen, 
                        levels = c("High_W","High_A", "High_D", "Mid_W", "Mid_A", "Mid_D"),
                        labels = c("Max. Effort - Wild virus",
@@ -505,6 +348,7 @@ effect_data <- eff_size %>%
 
 effect_data %>% 
   filter(effort != "Max.") %>% 
+  filter(cat != "Vaccination ") %>% 
   ggplot(.) +
   geom_pointrange(aes(x = optim_lag,
                       y = estimate,
@@ -547,13 +391,13 @@ effect_data %>%
   guides(color = guide_legend(nrow = 2),
          shape = guide_legend(nrow = 2))
 
-ggsave("figs/EURO_2/fig5_1.png",
+ggsave("figs/EURO_2/fig5_2_age.png",
        width = 15,
        height = 8) 
 
 pacman::p_load(rnaturalearch)
 
-res_tab[1:5] %>% 
+res_tab[1:3] %>% 
   mutate(set = 1:n() %>% 
            as.character) %>% 
   left_join(chosen, by = "set") %>% 
@@ -561,7 +405,7 @@ res_tab[1:5] %>%
   filter(scen != "Mid") %>% 
   pull(index) -> tar
 
-chosen_models[tar] %>% 
+r <- chosen_models[tar] %>% 
   map(~.$residuals) %>% 
   map(data.frame) %>% 
   map(rownames_to_column) %>% 
@@ -579,7 +423,7 @@ chosen_models[tar] %>%
                                          origin = "iso3c",
                                          destination = "country.name")) %>% 
   map(rownames_to_column, var = "rank") %>% 
-  bind_rows() -> r
+  bind_rows()
 
 r %>% 
   group_by(country, region) %>% 
