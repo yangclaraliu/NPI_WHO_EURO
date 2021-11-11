@@ -29,7 +29,7 @@ pacman::p_load(tidyverse,
 # regression exercise
 source(here("aicbic_plm.R"))
 #source(here("gen_reg_data.R"))
-source(here("V_4_select_var.R"))
+source(here("V4_select_var.R"))
 source(here("find_lag.R"))
 #source(here("calc_all_lags.R"))
 source(here("plot_all_lags.R"))
@@ -83,9 +83,9 @@ policy_dic <- colnames(oxford_data) %>%
          lab = gsub("\\.", " ", policy_name))#
 
 policy_dic_V <- policy_dic %>% 
-  add_row(policy_code = "V_all_adj", policy_name = "Vaccine coverage - all population (OWIN)", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - all population (OWIN)") %>% 
-  add_row(policy_code = "V_18_60_adj", policy_name = "Vaccine coverage - 18 to 60 (WHO)", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - 18 to 60 (WHO)") %>% 
-  add_row(policy_code = "V_60_adj", policy_name = "Vaccine coverage - 60+ (WHO)", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - 60+ (WHO)") %>% 
+  add_row(policy_code = "V_all_adj", policy_name = "Vaccine coverage - all population", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - all population (OWIN)") %>% 
+  add_row(policy_code = "V_18_60_adj", policy_name = "Vaccine coverage - 18 to 60", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - 18 to 60 (WHO)") %>% 
+  add_row(policy_code = "V_60_adj", policy_name = "Vaccine coverage - 60+", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - 60+ (WHO)") %>% 
   add_row(policy_code = "V_tot_adj", policy_name = "Vaccine coverage - all population (WHO)", policy_max = 1, cat = "Vaccination ", lab = "Vaccine coverage - all population (WHO)")
 
 # Build policy_data
