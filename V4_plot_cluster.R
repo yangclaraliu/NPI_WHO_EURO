@@ -43,7 +43,7 @@ plot_dend_all_age <- function(i){
   #           aes(x = x, y = y, label = label),
   #           size = 10) +
   coord_flip() +
-    scale_y_reverse(limits = c(180,-48),
+    scale_y_reverse(limits = c(180,-70),
                     breaks = c(150,100,50,0))+
     guides(color = guide_legend(override.aes = aes(size = 4)))+
     theme_cowplot() +
@@ -112,7 +112,7 @@ plot_dend_age <- function(i){
   #           aes(x = x, y = y, label = label),
   #           size = 10) +
   coord_flip() +
-    scale_y_reverse(limits = c(180,-48),
+    scale_y_reverse(limits = c(180,-70),
                     breaks = c(150,100,50,0))+
     guides(color = guide_legend(override.aes = aes(size = 4)))+
     theme_cowplot() +

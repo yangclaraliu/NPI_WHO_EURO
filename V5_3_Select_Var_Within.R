@@ -139,8 +139,7 @@ chosen <- lapply(res_tab$select,"[[",3) %>%
 p_table <- res_tab[1:3] %>% 
   mutate(set = 1:n() %>% 
            as.character) %>% 
-  left_join(chosen, by = "set")# %>% 
-  #filter(scen != "Mid")
+  left_join(chosen, by = "set")
 
 p_val <- list()
 
@@ -235,12 +234,80 @@ var_select_res <- chosen[chosen$criterion=="AIC",] %>%
   mutate(virus = factor(virus, levels = c("Wild", "Alpha", "Delta")))
 
 
-var_select_res %>% 
-  group_by(policy_code, virus, criterion)
+
+# Plot original timeline siginificance boxes
+var_select_res %>%
+  filter(scen_grp == "S1") %>% 
+  ggplot(.)  +
+  geom_rect(aes(xmin = lags-0.5,
+                ymin = var-0.5, 
+                xmax = lags+0.5,
+                ymax = var+0.5, 
+                fill = value)) +
+  geom_text(aes(x = lags,
+                y = var,
+                label = p_lab)) + 
+  # facet_grid(scen ~ max_date + criterion) +
+  ggh4x::facet_nested(virus ~  criterion) +
+  geom_point(aes(x = 1, y = 5, color = cat), alpha = 0) +
+  scale_color_manual(values = c('#a6cee3',
+                                '#1f78b4',
+                                '#b2df8a',
+                                '#33a02c',
+                                '#8856a7')) +
+  geom_segment(data = data.frame(y = c(0.5, 0.5, 0.5, 0.5),
+                                 yend = c(15.5, 15.5, 15.5, 15.5),
+                                 x = c(0.5, 1.5, 2.5,3.5),
+                                 xend = c(0.5,1.5, 2.5, 3.5)),
+               aes(x = x, xend = xend, y = y, yend = yend)) +
+  #  geom_segment(data = data.frame(y = seq(0.5,14.5,1),
+  #                                 yend = seq(0.5,14.5,1),
+  #                                 x = rep(0.5,14),
+  #                                 xend = rep(3.5,14)),
+  #               aes(x = x, xend = xend, y = y, yend = yend)) +
+  theme_cowplot() +
+  scale_y_continuous(breaks = seq(1,15,1),
+                     labels = joined$policy_dic %>% 
+                       filter(policy_code %in% policy_raw) %>% 
+                       pull(lab),
+                     trans = "reverse") +
+  scale_x_continuous(breaks = c(1,2, 3),
+                     labels = c("-1", "-14", "-28")) +
+  theme(axis.text    = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        legend.text  = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.position = "bottom",
+        strip.background = element_rect(fill = "white", 
+                                        color = "black"),
+        axis.text.y = element_text(color = c(rep('#a6cee3',7),
+                                             '#b2df8a',
+                                             rep('#1f78b4',2),
+                                             rep('#33a02c',4),
+                                             '#8856a7')),
+        legend.box = "vertical",
+        legend.box.just = "left",
+        legend.margin=margin(),
+        text = element_text(family = "Times New Roman"),
+        strip.text.y = element_text(face = "italic"),
+        strip.text = element_text(size = 20)) +
+  scale_fill_manual(values = c("snow2","darkgrey"),
+                    labels = c("Variable Excluded","Variable Chosen")) +
+  labs(x = "Temporal Lags", 
+       y = "", 
+       fill = "", 
+       color = "Intervention Category") +
+  guides(color = guide_legend(override.aes = list(alpha = 1,
+                                                  size = 3),
+                              nrow = 2))
+
+ggsave("figs/EURO_V5/fig4_1.png",
+       width = 15,
+       height = 10) 
 
 
+#~#~#~#~# Sensitivity analysis - compare significance boxes #~#~#~#~# 
 
-# Sensitivity analysis - compare significance boxes
 lag_for_plot <- c("1", "2", "3")
 optim_lag_name <- c("-1 day", "-14 days", "-28 days")
 
