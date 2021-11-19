@@ -29,7 +29,22 @@ hcd_all <-  joined %>%
  save(hcd_all, file = "results/hcd_V5.rdata")
 # [END]
 
-#load("results/hcd.rdata")
+load("results/hcd_V5.rdata")
+
+ plot(hcd_all$s1_D)
+pvrect(hcd_all$s1_D, alpha=0.9)
+
+hist(joined$s1_A) %>% 
+
+plot(joined$s1_A$C1, joined$s1_A$C2)
+
+a <- joined$s1_A$C1
+b <-joined$s1_A$C2
+tibble(a, b)
+
+ggplot(data = tibble(a, b))+
+  geom_point(aes(x = a, y = b))+
+  abline()
 
 # S1 cluster - wild
 s1_W_dend <- joined$s1_W %>% 
