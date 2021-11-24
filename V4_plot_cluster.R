@@ -28,20 +28,6 @@ plot_dend_all_age <- function(i){
                label.padding = unit(0.55, "lines"),
                label.size = 1,
                show.legend = F) +
-    #    geom_rect(data = sig_boxes[[1]],
-    #              aes(xmin = xmin,
-    #                  xmax = xmax,
-    #                  ymin = ymin,
-    #                  ymax = ymax),
-    #              fill = NA,
-    #              color = "firebrick",
-    #              size = 1.5,
-    #              linetype = 2) +
-    # geom_text(data = data.frame(x = 13.55,
-    #                             y = 130,
-  #                             label = "Timing of \nMaximum Efforts"),
-  #           aes(x = x, y = y, label = label),
-  #           size = 10) +
   coord_flip() +
     scale_y_reverse(limits = c(180,-70),
                     breaks = c(150,100,50,0))+
@@ -60,11 +46,11 @@ plot_dend_all_age <- function(i){
           axis.text = element_blank(),
           axis.ticks = element_blank()) +
     # theme_dendro() +
-    scale_color_manual(values = c('#a6cee3',
-                                  '#1f78b4',
-                                  '#b2df8a',
-                                  '#33a02c',
-                                  '#8856a7')) 
+    scale_color_manual(values = c('#66c2a5',
+                                  '#fc8d62',
+                                  '#8da0cb',
+                                  '#e78ac3',
+                                  '#a6d854')) 
 }
 
 

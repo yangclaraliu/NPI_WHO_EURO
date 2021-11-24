@@ -93,7 +93,7 @@ save(res_tab, res_tab_forward, file = "results/res_tab_V6.rdata")
 chosen <- lapply(res_tab$select,"[[",3) %>% 
   map(mutate, rk_AIC = rank(AIC_val, ties.method = "first")) %>% 
   map(mutate, rk_BIC = rank(BIC_val, ties.method = "first")) %>% 
-  map(filter, rk_AIC == 1| rk_BIC == 1) %>% 
+  map(filter, rk_AIC == 1| rk_BIC == 1) %>% #here to get R2
   map(dplyr::select, model, rk_AIC, rk_BIC) %>% 
   map(pivot_longer, cols =starts_with ("rk"), names_to = "criterion") %>% 
   map(filter, value == 1) %>% 
@@ -200,7 +200,7 @@ var_select_res <- chosen[chosen$criterion=="AIC",] %>%
 
 # Plot original timeline siginificance boxes
 var_select_res %>%
-  filter(scen_grp == "Max") %>% 
+  #filter(scen_grp == "Max") %>% 
   ggplot(.)  +
   geom_rect(aes(xmin = lags-0.5,
                 ymin = var-0.5, 
@@ -211,13 +211,13 @@ var_select_res %>%
                 y = var,
                 label = p_lab)) + 
   # facet_grid(scen ~ max_date + criterion) +
-  ggh4x::facet_nested(virus ~  criterion) +
+  ggh4x::facet_nested(scen_grp ~  virus + criterion) +
   geom_point(aes(x = 1, y = 5, color = cat), alpha = 0) +
-  scale_color_manual(values = c('#a6cee3',
-                                '#1f78b4',
-                                '#b2df8a',
-                                '#33a02c',
-                                '#8856a7')) +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854')) +
   geom_segment(data = data.frame(y = c(0.5, 0.5, 0.5, 0.5),
                                  yend = c(15.5, 15.5, 15.5, 15.5),
                                  x = c(0.5, 1.5, 2.5,3.5),
@@ -243,11 +243,12 @@ var_select_res %>%
         legend.position = "bottom",
         strip.background = element_rect(fill = "white", 
                                         color = "black"),
-        axis.text.y = element_text(color = c(rep('#a6cee3',7),
-                                             '#b2df8a',
-                                             rep('#1f78b4',2),
-                                             rep('#33a02c',4),
-                                             '#8856a7')),
+        
+        axis.text.y = element_text(color = c(rep('#66c2a5',7),  #'#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854'
+                                             '#8da0cb',
+                                             rep('#fc8d62',2),
+                                             rep('#e78ac3',4),
+                                             '#a6d854')),
         legend.box = "vertical",
         legend.box.just = "left",
         legend.margin=margin(),
@@ -264,7 +265,7 @@ var_select_res %>%
                                                   size = 3),
                               nrow = 2))
 
-ggsave("figs/EURO_V6/fig4_1.png",
+ggsave("figs/EURO_V6/fig4_1_all.png",
        width = 15,
        height = 10) 
 
@@ -318,7 +319,7 @@ effect_data <- eff_size %>%
                                 "Significantly Positive"))) %>% 
   mutate(scen_grp = case_when(grepl("mid", scen) ~ "Multi-level",
                               grepl("max", scen) ~ "Max")) %>% 
-#  mutate(scen_grp = factor(scen_grp, levels = c("S1", "S2", "S3", "S4"))) %>% 
+  #  mutate(scen_grp = factor(scen_grp, levels = c("S1", "S2", "S3", "S4"))) %>% 
   mutate(virus = case_when(grepl("W", scen) ~ "Wild type",
                            grepl("A", scen) ~ "Alpha",
                            grepl("D", scen) ~ "Delta")) %>% 
@@ -326,71 +327,71 @@ effect_data <- eff_size %>%
 
 
 cluster_list <- list(hcd_W$s1_W_max, hcd_FAD$s1_A_max, hcd_FAD$s1_D_max,
-     hcd_W$s1_W_mid,  hcd_FAD$s1_A_mid, hcd_FAD$s1_D_mid)
+                     hcd_W$s1_W_mid,  hcd_FAD$s1_A_mid, hcd_FAD$s1_D_mid)
 
 scen_effort <- c(rep("Max", 3), rep("Multi-level", 3))
 
 scen_virus <- rep(c("Wild type", "Alpha", "Delta"),2)
 
 plot_virus_effect <- function(i){
-# Max wild 
-clust_max <- pvclust::pvpick(cluster_list[[i]])$clusters %>% 
-  enframe() %>%
-  unnest() %>% 
-  left_join(., joined$policy_dic %>%
-              select(policy_code, lab), by = c("value" = "policy_code")) %>% 
-  mutate(cluster = paste0("Cluster - ", name)) 
-
-effect_data %>% 
-  filter(scen_grp == scen_effort[[i]]) %>%
-  filter(virus == scen_virus[[i]]) %>% 
-  left_join(., clust_max, by = c("lab"= "lab")) %>% 
-  mutate(cluster = paste0("Cluster - ", name)) %>% 
-  mutate(cluster = if_else(cluster == "Cluster - NA", "No cluster", cluster)) %>% 
-  ggplot(.) +
-  geom_pointrange(aes(x = optim_lag,
-                      y = estimate,
-                      ymin = x,
-                      ymax = xend,
-                      color = cat,
-                      shape = stat_sig),
-                  size = 0.75) +
-  scale_alpha_manual(values = c(1,0.5, 0.2)) +
-  scale_shape_manual(values = c(16, 1, 13)) +
-  ggh4x::facet_nested(virus  ~ cluster + var + criterion,
-                      labeller = label_wrap_gen(multi_line = T,
-                                                width = 12)) +
-  scale_color_manual(values = c('#66c2a5',
-                                '#fc8d62',
-                                '#8da0cb',
-                                '#e78ac3',
-                                '#a6d854'))+
-  theme_bw()+
-  geom_hline(yintercept = 0, color = "black", linetype = 2) +
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = 15),
-        strip.background = element_rect(fill = NA),
-        axis.text.x = element_text(vjust = 0.5,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text    = element_text(size = 8),
-        axis.title = element_text(size = 15),
-        legend.text  = element_text(size = 12),
-        strip.text = element_text(size = 10)) +
-  labs(y = "Effects",
-       x = "Temporal lag",
-       color = "Model Specification",
-       shape = "Effect Type",
-       title = paste0(scen_virus[[i]], " - ", scen_effort[[i]], " effort")) +
-  guides(color = guide_legend(nrow = 2),
-         shape = guide_legend(nrow = 2))
-
-ggsave(paste0("figs/EURO_V6/fig_5", scen_effort[[i]], "_", scen_virus[[i]], ".png"),
-       width = 15,
-       height = 6) 
-
-
+  # Max wild 
+  clust_max <- pvclust::pvpick(cluster_list[[i]])$clusters %>% 
+    enframe() %>%
+    unnest() %>% 
+    left_join(., joined$policy_dic %>%
+                select(policy_code, lab), by = c("value" = "policy_code")) %>% 
+    mutate(cluster = paste0("Cluster - ", name)) 
+  
+  effect_data %>% 
+    filter(scen_grp == scen_effort[[i]]) %>%
+    filter(virus == scen_virus[[i]]) %>% 
+    left_join(., clust_max, by = c("lab"= "lab")) %>% 
+    mutate(cluster = paste0("Cluster - ", name)) %>% 
+    mutate(cluster = if_else(cluster == "Cluster - NA", "No cluster", cluster)) %>% 
+    ggplot(.) +
+    geom_pointrange(aes(x = optim_lag,
+                        y = estimate,
+                        ymin = x,
+                        ymax = xend,
+                        color = cat,
+                        shape = stat_sig),
+                    size = 0.75) +
+    scale_alpha_manual(values = c(1,0.5, 0.2)) +
+    scale_shape_manual(values = c(16, 1, 13)) +
+    ggh4x::facet_nested(virus  ~ cluster + var + criterion,
+                        labeller = label_wrap_gen(multi_line = T,
+                                                  width = 12)) +
+    scale_color_manual(values = c('#66c2a5',
+                                  '#fc8d62',
+                                  '#8da0cb',
+                                  '#e78ac3',
+                                  '#a6d854'))+
+    theme_bw()+
+    geom_hline(yintercept = 0, color = "black", linetype = 2) +
+    theme(panel.grid = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_text(size = 15),
+          strip.background = element_rect(fill = NA),
+          axis.text.x = element_text(vjust = 0.5,
+                                     angle = 90,
+                                     hjust = 1),
+          axis.text    = element_text(size = 8),
+          axis.title = element_text(size = 15),
+          legend.text  = element_text(size = 12),
+          strip.text = element_text(size = 10)) +
+    labs(y = "Effects",
+         x = "Temporal lag",
+         color = "Model Specification",
+         shape = "Effect Type",
+         title = paste0(scen_virus[[i]], " - ", scen_effort[[i]], " effort")) +
+    guides(color = guide_legend(nrow = 2),
+           shape = guide_legend(nrow = 2))
+  
+  ggsave(paste0("figs/EURO_V6/fig_5", scen_effort[[i]], "_", scen_virus[[i]], ".png"),
+         width = 15,
+         height = 6) 
+  
+  
 }
 
 map(1:length(scen_virus), plot_virus_effect)
@@ -509,88 +510,330 @@ plot_w
 plot_A
 plot_D
 
+#### testing
+
+# Plot all effects - no clusters, max effort
+effect_data %>% 
+  filter(scen_grp == "Max") %>%
+  ggplot(.) +
+  geom_pointrange(aes(x = optim_lag,
+                      y = estimate,
+                      ymin = x,
+                      ymax = xend,
+                      color = cat,
+                      shape = stat_sig),
+                  size = 0.75) +
+  scale_alpha_manual(values = c(1,0.5, 0.2)) +
+  scale_shape_manual(values = c(16, 1, 13)) +
+  ggh4x::facet_nested(virus  ~   var + criterion,
+                      labeller = label_wrap_gen(multi_line = T,
+                                                width = 12)) +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854'))+
+  theme_bw()+
+  geom_hline(yintercept = 0, color = "black", linetype = 2) +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_text(size = 15),
+        strip.background = element_rect(fill = NA),
+        axis.text.x = element_text(vjust = 0.5,
+                                   angle = 90,
+                                   hjust = 1),
+        axis.text    = element_text(size = 8),
+        axis.title = element_text(size = 15),
+        legend.text  = element_text(size = 12),
+        strip.text = element_text(size = 10)) +
+  labs(y = "Effects",
+       x = "Temporal lag",
+       color = "Model Specification",
+       shape = "Effect Type",
+       title = "") +
+  guides(color = guide_legend(nrow = 2),
+         shape = guide_legend(nrow = 2))
+
+
+ggsave("figs/EURO_V6/fig2_0_max_effect.png",
+       width = 18,
+       height = 8)  
+
+# Multi-level effort
+effect_data %>% 
+  filter(scen_grp == "Multi-level") %>%
+  #  filter(virus == "Delta") %>% 
+  #  left_join(., clust_max, by = c("lab"= "lab")) %>% 
+  #  mutate(cluster = paste0("Cluster - ", name)) %>% 
+  #  mutate(cluster = if_else(cluster == "Cluster - NA", "No cluster", cluster)) %>% 
+  ggplot(.) +
+  geom_pointrange(aes(x = optim_lag,
+                      y = estimate,
+                      ymin = x,
+                      ymax = xend,
+                      color = cat,
+                      shape = stat_sig),
+                  size = 0.75) +
+  scale_alpha_manual(values = c(1,0.5, 0.2)) +
+  scale_shape_manual(values = c(16, 1, 13)) +
+  ggh4x::facet_nested(virus  ~   var + criterion,
+                      labeller = label_wrap_gen(multi_line = T,
+                                                width = 12)) +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854'))+
+  theme_bw()+
+  geom_hline(yintercept = 0, color = "black", linetype = 2) +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_text(size = 15),
+        strip.background = element_rect(fill = NA),
+        axis.text.x = element_text(vjust = 0.5,
+                                   angle = 90,
+                                   hjust = 1),
+        axis.text    = element_text(size = 8),
+        axis.title = element_text(size = 15),
+        legend.text  = element_text(size = 12),
+        strip.text = element_text(size = 10)) +
+  labs(y = "Effects",
+       x = "Temporal lag",
+       color = "Model Specification",
+       shape = "Effect Type",
+       title = "") +
+  guides(color = guide_legend(nrow = 2),
+         shape = guide_legend(nrow = 2))
+
+
+ggsave("figs/EURO_V6/fig2_0_mid_effect.png",
+       width = 18,
+       height = 8)  
+
+
+##
+# Compare max and multi level
+effect_data %>% 
+  filter(criterion == "AIC") 
+  ggplot(.) +
+  geom_pointrange(aes(x = optim_lag,
+                      y = estimate,
+                      ymin = x,
+                      ymax = xend,
+                      color = cat,
+                      shape = stat_sig),
+                  size = 0.75) +
+  scale_alpha_manual(values = c(1,0.5, 0.2)) +
+  scale_shape_manual(values = c(16, 1, 13)) +
+  ggh4x::facet_nested(virus  ~   var + scen_grp,
+                      labeller = label_wrap_gen(multi_line = T,
+                                                width = 12)) +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854'))+
+  theme_bw()+
+  geom_hline(yintercept = 0, color = "black", linetype = 2) +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_text(size = 15),
+        strip.background = element_rect(fill = NA),
+        axis.text.x = element_text(vjust = 0.5,
+                                   angle = 90,
+                                   hjust = 1),
+        axis.text    = element_text(size = 8),
+        axis.title = element_text(size = 15),
+        legend.text  = element_text(size = 12),
+        strip.text = element_text(size = 10)) +
+  labs(y = "Effects",
+       x = "Temporal lag",
+       color = "Model Specification",
+       shape = "Effect Type",
+       title = "") +
+  guides(color = guide_legend(nrow = 2),
+         shape = guide_legend(nrow = 2))
+
+
+ggsave("figs/EURO_V6/fig2_0_effort_aic_effect.png",
+       width = 18,
+       height = 8)  
+
+
+#### compare across VOC for AIC
+effect_data %>% 
+  filter(optim_lag == "14 days") %>% 
+  filter(criterion == "AIC") %>% 
+  ggplot(.) +
+  geom_pointrange(aes(x = virus,
+                      y = estimate,
+                      ymin = x,
+                      ymax = xend,
+                      color = cat,
+                      shape = stat_sig),
+                  size = 0.75) +
+  scale_alpha_manual(values = c(1,0.5, 0.2)) +
+  scale_shape_manual(values = c(16, 1, 13)) +
+  ggh4x::facet_nested(scen_grp  ~   var ,
+                      labeller = label_wrap_gen(multi_line = T,
+                                                width = 12)) +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854'))+
+  theme_bw()+
+  geom_hline(yintercept = 0, color = "black", linetype = 2) +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_text(size = 15),
+        strip.background = element_rect(fill = NA),
+        axis.text.x = element_text(vjust = 0.5,
+                                   angle = 90,
+                                   hjust = 1),
+        axis.text    = element_text(size = 8),
+        axis.title = element_text(size = 15),
+        legend.text  = element_text(size = 12),
+        strip.text = element_text(size = 10)) +
+  labs(y = "Effects",
+       x = "Variant period",
+       color = "Model Specification",
+       shape = "Effect Type",
+       title = "") +
+  guides(color = guide_legend(nrow = 2),
+         shape = guide_legend(nrow = 2))
+
+ggsave("figs/EURO_V6/fig2_0_effort_14_day_AIC.png",
+       width = 18,
+       height = 8)  
+
+
+
+
+# Fixed/random effects test
+tmp <- joined$s1_full_max %>% 
+  filter(!country %in% cnt_remove) %>% 
+  select(-c(variables_remove_age))
+
+tmp %>% 
+  ungroup %>% 
+  left_join(country_list %>% dplyr::select(-name), by = "cnt") -> tmp
+
+tmp <- pdata.frame(tmp, index=c("cnt","date"), drop.index=TRUE, row.names=TRUE)
+
+f <-  joined$policy_dic$policy_code %>% 
+  .[!. %in% c("V_18_60_adj", "V_60_adj", "V_tot_adj")] %>% 
+  paste(., collapse = " + ") %>% 
+  paste0("lag(median,", c(0, -1, -14, -28), ") ~ ",.)
+
+
+f %>% 
+  map(as.formula) %>% 
+  map(plm, data = tmp, model = "within") -> g1
+# 
+f %>% 
+  map(as.formula) %>% 
+  map(plm, data = tmp, model = "random") -> g2
+# 
+map2(g1, g2, phtest)
+
+# P value less than 0.05, reject null hypothesis of random effects
 
 
 
 
 
 
-# Plot for results (SX)
-sens_scen <- c("S1", "S2", "S3", "S4")
+# combinations for mapping
+cluster_list <- list(hcd_W$s1_W_max, hcd_FAD$s1_A_max, hcd_FAD$s1_D_max,
+                     hcd_W$s1_W_mid,  hcd_FAD$s1_A_mid, hcd_FAD$s1_D_mid)
 
-plot_scen <- function(i){
+scen_effort <- c(rep("Max", 3), rep("Multi-level", 3))
+
+scen_virus <- rep(c("Wild type", "Alpha", "Delta"),2)
+
+plot_cluster_mean <- function(i){
+  
+  # Extract clusters 
+  clust_max <- pvclust::pvpick(cluster_list[[i]])$clusters %>% 
+    enframe() %>%
+    unnest() %>% 
+    left_join(., joined$policy_dic %>%
+                select(policy_code, lab), by = c("value" = "policy_code")) %>% 
+    mutate(cluster = paste0("Cluster - ", name)) 
   
   effect_data %>% 
-    filter(scen_grp == sens_scen[i]) %>% 
-    ggplot(.) +
-    geom_pointrange(aes(x = optim_lag,
-                        y = estimate,
-                        ymin = x,
-                        ymax = xend,
-                        color = cat,
-                        shape = stat_sig),
-                    size = 0.75) +
-    scale_alpha_manual(values = c(1,0.5, 0.2)) +
-    scale_shape_manual(values = c(16, 1, 13)) +
-    ggh4x::facet_nested(virus  ~ var + criterion,
-                        labeller = label_wrap_gen(multi_line = T,
-                                                  width = 12)) +
-    scale_color_manual(values = c('#a6cee3',
-                                  '#1f78b4',
-                                  '#b2df8a',
-                                  '#33a02c',
-                                  '#8856a7'))+
-    theme_bw()+
-    geom_hline(yintercept = 0, color = "black", linetype = 2) +
-    theme(panel.grid = element_blank(),
-          legend.position = "bottom",
-          legend.title = element_text(size = 15),
-          strip.background = element_rect(fill = NA),
-          axis.text.x = element_text(vjust = 0.5,
-                                     angle = 90,
-                                     hjust = 1),
-          axis.text    = element_text(size = 8),
-          axis.title = element_text(size = 15),
-          legend.text  = element_text(size = 12),
-          strip.text = element_text(size = 10)) +
-    labs(y = "Effects",
-         x = "Temporal lag",
-         color = "Model Specification",
-         shape = "Effect Type",
-         title = "") +
-    guides(color = guide_legend(nrow = 2),
-           shape = guide_legend(nrow = 2))
-  
-  ggsave(paste0("figs/EURO_V5/fig5_sen_effect_", sens_scen[i], ".png"),
-         width = 15,
-         height = 6) 
+    filter(scen_grp == scen_effort[[i]]) %>%
+    filter(virus == scen_virus[[i]]) %>% 
+    left_join(., clust_max, by = c("lab"= "lab")) %>% 
+    mutate(cluster = paste0("Cluster - ", name)) %>% 
+    mutate(cluster = if_else(cluster == "Cluster - NA", "No cluster", cluster)) %>% 
+    group_by(cluster, criterion, optim_lag) %>% 
+    summarise(mean = mean(estimate, na.rm = TRUE),
+              sd = sd(estimate, na.rm = TRUE),
+              n = n()) %>%
+    mutate(se = sd/ sqrt(n),
+           lower.ci = mean - qt(1 - (0.05 / 2), n - 1) * se,
+           upper.ci = mean + qt(1 - (0.05 / 2), n - 1) * se) %>%
+    mutate(virus =  scen_virus[[i]]) %>% 
+    mutate(effort = scen_effort[[i]])
 }
 
-# Plot and save all sensitivity analysis
-map(1:length(sens_scen), plot_scen)
 
+# Map all cluster mean effects  
+mean_plot <-   map(1:6, plot_cluster_mean) %>% 
+  bind_rows()
 
-# Plot sensitivity analysis for lag 1 day
-plot_lag1 <- effect_data %>% 
-  filter(optim_lag == "1 day") %>% 
+# R-squared data for models
+r2_data <- lapply(res_tab$select,"[[",3) %>% 
+  map(mutate, rk_AIC = rank(AIC_val, ties.method = "first")) %>% 
+  map(mutate, rk_BIC = rank(BIC_val, ties.method = "first")) %>% 
+  map(filter, rk_AIC == 1| rk_BIC == 1) %>% #here to get R2
+  map(dplyr::select, model, rk_AIC, rk_BIC, AIC_ar2, BIC_ar2) %>% 
+  map(pivot_longer, cols =contains("r2"), names_to = "criterion") %>% 
+  map(first) %>% 
+  bind_rows(.id = "set") %>%
+  select(set, value) %>% 
+  cbind(res_tab_forward %>% 
+          mutate(set = c(1:18)) %>% 
+          select(-select) %>% 
+          mutate(set_1 = as.character(set))) %>% 
+  select(-set) %>% 
+  as_tibble() %>% 
+  mutate(scen_grp = case_when(grepl("mid", scen) ~ "Multi-level",
+                              grepl("max", scen) ~ "Max")) %>% 
+  mutate(virus = case_when(grepl("W", scen) ~ "Wild type",
+                           grepl("A", scen) ~ "Alpha",
+                           grepl("D", scen) ~ "Delta")) %>% 
+  mutate(virus = factor(virus, levels = c("Wild type", "Alpha", "Delta"))) %>% 
+  mutate(optim_lag = factor(optim_lag,
+                            levels = c(-1, -14, -28),
+                            labels = c("1 day", "14 days", "28 days")))
+
+# Plot mean cluster effect sizes
+mean_plot %>% 
+  left_join(., r2_data, by = c("virus" = "virus", "effort" = "scen_grp", "optim_lag" = "optim_lag")) %>%  
+  mutate(virus = factor(virus, levels = c("Wild type", "Alpha", "Delta"))) %>% 
+  filter(effort == "Multi-level") %>% 
   ggplot(.) +
-  geom_pointrange(aes(x = scen_grp,
-                      y = estimate,
-                      ymin = x,
-                      ymax = xend,
-                      color = cat,
-                      shape = stat_sig),
-                  size = 0.75) +
+  geom_pointrange(aes(x = optim_lag,
+                      y = mean,
+                      ymin = lower.ci,
+                      ymax = upper.ci, 
+                      color = cluster,
+                      size = value)) +
   scale_alpha_manual(values = c(1,0.5, 0.2)) +
   scale_shape_manual(values = c(16, 1, 13)) +
-  ggh4x::facet_nested(virus  ~ var + criterion,
+  scale_size(range = c(0,1))+
+  #  ggh4x::facet_nested(cluster ~  virus + criterion ,
+  ggh4x::facet_nested(virus  ~ effort + cluster + criterion ,
                       labeller = label_wrap_gen(multi_line = T,
-                                                width = 12)) +
-  scale_color_manual(values = c('#a6cee3',
-                                '#1f78b4',
-                                '#b2df8a',
-                                '#33a02c',
-                                '#8856a7'))+
+                                                width = 12), scales = "free_y") +
+  scale_color_manual(values = c('#66c2a5',
+                                '#fc8d62',
+                                '#8da0cb',
+                                '#e78ac3',
+                                '#a6d854'))+
   theme_bw()+
   geom_hline(yintercept = 0, color = "black", linetype = 2) +
   theme(panel.grid = element_blank(),
@@ -604,128 +847,16 @@ plot_lag1 <- effect_data %>%
         axis.title = element_text(size = 15),
         legend.text  = element_text(size = 12),
         strip.text = element_text(size = 10)) +
-  labs(y = "Effects",
-       x = "Sensitivity analysis scenario",
-       color = "Model Specification",
+  #ylim(c(-1.5,1.5))+
+  labs(y = "Mean cluster effect size",
+       x = "Temporal lag",
+       color = "",
        shape = "Effect Type",
-       title = "Sensitivity analysis - lag 1 day") +
-  guides(color = guide_legend(nrow = 2),
-         shape = guide_legend(nrow = 2))
+       title = "",
+       size = "Adjusted R2") +
+  guides(color = FALSE,
+         shape = guide_legend(nrow = 2)) 
 
-
-# Plot sensitivity analysis for lag 14 days
-plot_lag2 <- effect_data %>% 
-  filter(optim_lag == "14 days") %>% 
-  ggplot(.) +
-  geom_pointrange(aes(x = scen_grp,
-                      y = estimate,
-                      ymin = x,
-                      ymax = xend,
-                      color = cat,
-                      shape = stat_sig),
-                  size = 0.75) +
-  scale_alpha_manual(values = c(1,0.5, 0.2)) +
-  scale_shape_manual(values = c(16, 1, 13)) +
-  ggh4x::facet_nested(virus  ~ var + criterion,
-                      labeller = label_wrap_gen(multi_line = T,
-                                                width = 12)) +
-  scale_color_manual(values = c('#a6cee3',
-                                '#1f78b4',
-                                '#b2df8a',
-                                '#33a02c',
-                                '#8856a7'))+
-  theme_bw()+
-  geom_hline(yintercept = 0, color = "black", linetype = 2) +
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = 15),
-        strip.background = element_rect(fill = NA),
-        axis.text.x = element_text(vjust = 0.5,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text    = element_text(size = 8),
-        axis.title = element_text(size = 15),
-        legend.text  = element_text(size = 12),
-        strip.text = element_text(size = 10)) +
-  labs(y = "Effects",
-       x = "Sensitivity analysis scenario",
-       color = "Model Specification",
-       shape = "Effect Type",
-       title = "Sensitivity analysis - lag 14 days") +
-  guides(color = guide_legend(nrow = 2),
-         shape = guide_legend(nrow = 2))
-
-# Plot sensitivity analysis for lag 28 days
-plot_lag3 <- effect_data %>% 
-  filter(optim_lag == "28 days") %>% 
-  ggplot(.) +
-  geom_pointrange(aes(x = scen_grp,
-                      y = estimate,
-                      ymin = x,
-                      ymax = xend,
-                      color = cat,
-                      shape = stat_sig),
-                  size = 0.75) +
-  scale_alpha_manual(values = c(1,0.5, 0.2)) +
-  scale_shape_manual(values = c(16, 1, 13)) +
-  ggh4x::facet_nested(virus  ~ var + criterion,
-                      labeller = label_wrap_gen(multi_line = T,
-                                                width = 12)) +
-  scale_color_manual(values = c('#a6cee3',
-                                '#1f78b4',
-                                '#b2df8a',
-                                '#33a02c',
-                                '#8856a7'))+
-  theme_bw()+
-  geom_hline(yintercept = 0, color = "black", linetype = 2) +
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = 15),
-        strip.background = element_rect(fill = NA),
-        axis.text.x = element_text(vjust = 0.5,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text    = element_text(size = 8),
-        axis.title = element_text(size = 15),
-        legend.text  = element_text(size = 12),
-        strip.text = element_text(size = 10)) +
-  labs(y = "Effects",
-       x = "Sensitivity analysis scenario",
-       color = "Model Specification",
-       shape = "Effect Type",
-       title = "Sensitivity analysis - lag 28 days") +
-  guides(color = guide_legend(nrow = 2),
-         shape = guide_legend(nrow = 2))
-
-# Plot combined
-plot_no_legend  <- plot_grid(
-  plot_lag1 + theme(legend.position = "none"),
-  plot_lag2 + theme(legend.position = "none"),
-  plot_lag3 + theme(legend.position = "none"), ncol = 1)
-
-legend <- get_legend(plot_lag1 + theme(legend.box.margin = margin(-15,0,0,0)))
-
-plot_grid(plot_no_legend, legend, ncol = 1, rel_heights = c(10, 1), align = "v")
-
-ggsave("figs/EURO_V5/fig5_sen_effect.png",
-       width = 15,
-       height = 20) 
-
-
-# Plot individually
-plot_lag1
-ggsave("figs/EURO_V5/fig5_sen_effect_lag1.png",
-       width = 15,
-       height = 6) 
-
-plot_lag2
-ggsave("figs/EURO_V5/fig5_sen_effect_lag2.png",
-       width = 15,
-       height = 6) 
-
-plot_lag3
-ggsave("figs/EURO_V5/fig5_sen_effect_lag3.png",
-       width = 15,
-       height = 6) 
-
-
+ggsave("figs/EURO_V6/fig2_cluster_mean_effects.png",
+       width = 6,
+       height = 6)  
