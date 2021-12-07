@@ -234,6 +234,83 @@ plot_dend_all_age(4)+
 ggsave("figs/EURO_V6/fig2_4_mid_delta.png",
        width = 18,
        height = 9)  
+##########################
+
+Wclust <- plot_dend_all_age(2)+
+  labs(title = "Wild type virus dominant period",
+       color = " ",
+       y = "Height") +
+  geom_rect(data = data.frame(xmin = c(3.65, 0.25),
+                              xmax = c(14.75, 3.45),
+                              ymin = c(-65, -65),
+                              ymax = c(75, 50)),
+            aes(xmin = xmin,
+                xmax = xmax,
+                ymin = ymin,
+                ymax = ymax),
+            fill = NA,
+            color = "red",
+            size = 1.5,
+            linetype = 2) +
+  geom_segment(aes(x = 0, xend = 0, y = 0, yend = 150), size = 1.5) +
+  geom_text(aes(y = c(0, 50, 75,100, 150), 
+                x = -0.2, 
+                label = c("0","50","\nHeight","100","150")), 
+            size = 5)
+
+
+Aclust <- plot_dend_all_age(3)+
+  labs(title = "Alpha variant dominant period",
+       color = " ",
+       y = "Height") +
+  geom_rect(data = data.frame(xmin = c(4.65, 0.25),
+                              xmax = c(15.75, 4.45),
+                              ymin = c(-65, -65),
+                              ymax = c(56, 55)),
+            aes(xmin = xmin,
+                xmax = xmax,
+                ymin = ymin,
+                ymax = ymax),
+            fill = NA,
+            color = "red",
+            size = 1.5,
+            linetype = 2) +
+  geom_segment(aes(x = 0, xend = 0, y = 0, yend = 150), size = 1.5) +
+  geom_text(aes(y = c(0, 50, 75,100, 150), 
+                x = -0.2, 
+                label = c("0","50","\nHeight","100","150")), 
+            size = 5)
+
+
+Dclust <- plot_dend_all_age(4)+
+  labs(title = "Delta variant dominant period",
+       color = " ",
+       y = "Height") +
+  geom_rect(data = data.frame(xmin = c(3.65, 0.25),
+                              xmax = c(15.75, 3.45),
+                              ymin = c(-65, -65),
+                              ymax = c(65, 35)),
+            aes(xmin = xmin,
+                xmax = xmax,
+                ymin = ymin,
+                ymax = ymax),
+            fill = NA,
+            color = "red",
+            size = 1.5,
+            linetype = 2) +
+  geom_segment(aes(x = 0, xend = 0, y = 0, yend = 150), size = 1.5) +
+  geom_text(aes(y = c(0, 50, 75,100, 150), 
+                x = -0.2, 
+                label = c("0","50","\nHeight","100","150")), 
+            size = 5)
+
+
+
+
+
+
+#####~~~##### #####~~~##### #####~~~##### #####~~~##### #####~~~##### #####~~~##### #####~~~##### 
+#####~~~##### #####~~~##### #####~~~#####   Max effort  #####~~~##### #####~~~##### #####~~~##### 
 
 ##### Max effort
 # Full TS max effort

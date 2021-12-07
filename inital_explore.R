@@ -13,7 +13,8 @@ vac_ox <- read.csv("https://raw.githubusercontent.com/OxCGRT/covid-policy-tracke
 
 # Original data used 
 # 187 days in 178 countries
-oxford_data <- here("data","oxford_data_2020-07-05.csv") %>% read.csv(as.is = TRUE)
+oxford_data <- here("data","oxford_data_2020-07-05.csv") %>% 
+  read.csv(as.is = TRUE)
 
 # Updated stringency data - filter to Europe region
 upd_oxford <- read.csv("https://raw.githubusercontent.com/OxCGRT/covid-policy-tracker/master/data/OxCGRT_latest.csv") %>% 

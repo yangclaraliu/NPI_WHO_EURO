@@ -5,6 +5,7 @@ policy_raw_desc <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2"
 
 # Number of days, Wild type period
 no_days_wild <- joined_max_S1_W %>% 
+  filter(date >= as.Date("2020-01-20")) %>% 
   group_by(cnt) %>% 
   mutate(marker = 1) %>% 
   summarise(days = sum(marker)) %>%
@@ -30,6 +31,7 @@ no_days_delta <- joined_max_S1_D %>%
 # Mean days active - Max wild type
 max_wild <- map(1:length(policy_raw_desc),
                 function(i){joined_max_S1_W %>% 
+                    filter(date >= as.Date("2020-01-20")) %>% 
                     select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
                     group_by(country) %>% 
                     mutate(tot = row_number()) %>% 
@@ -94,8 +96,9 @@ max_delta <- map(1:length(policy_raw_desc),
   mutate(intervention = "Max. effort")
 
 # Mean days active - Any wild type
-mid_wild <- map(1:length(policy_raw_desc),
+any_wild <- map(1:length(policy_raw_desc),
                  function(i){joined_mid_S1_W %>% 
+                     filter(date >= as.Date("2020-01-20")) %>% 
   select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
   group_by(country) %>% 
   mutate(tot = row_number()) %>% 
@@ -117,7 +120,7 @@ mid_wild <- map(1:length(policy_raw_desc),
   mutate(intervention = "Any effort")
 
 # Mean days active - Any alpha type
-mid_alpha <- map(1:length(policy_raw_desc),
+any_alpha <- map(1:length(policy_raw_desc),
                 function(i){joined_mid_S1_A %>% 
                     select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
                     group_by(country) %>% 
@@ -140,7 +143,7 @@ mid_alpha <- map(1:length(policy_raw_desc),
   mutate(intervention = "Any effort")
 
 # Mean days active - Max delta type
-mid_delta <- map(1:length(policy_raw_desc),
+any_delta <- map(1:length(policy_raw_desc),
                  function(i){joined_mid_S1_D %>% 
                      select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
                      group_by(country) %>% 
@@ -166,7 +169,7 @@ mid_delta <- map(1:length(policy_raw_desc),
 
 # Bind all scenarios
 desc_data <- bind_rows(max_wild, max_alpha, max_delta,
-                       mid_wild, mid_alpha, mid_delta) %>% 
+                       any_wild, any_alpha, any_delta) %>% 
   mutate(variant = factor(variant, levels = c("Wild type", "Alpha", "Delta"))) %>% 
   left_join(., joined$policy_dic %>% 
               filter(policy_code %in% policy_raw), by = c("var" = "policy_code")) %>% 
@@ -262,6 +265,8 @@ desc_data %>%
   geom_col(data = . %>% filter( intervention=="Max. effort"), position = position_dodge(width = 0.9), alpha = 1) +
   geom_col(data = . %>% filter( intervention=="Any effort"), position = position_dodge(width = 0.9), alpha = 0.4) +
   geom_tile(aes(y=NA_integer_, alpha = factor(intervention)))+
+  scale_fill_brewer(palette = "Set2")+
+  scale_color_brewer(palette = "Set2")+
   theme_cowplot() +
   theme(axis.text    = element_text(size = 12),
         axis.title = element_text(size = 15),
@@ -291,40 +296,94 @@ ggsave("figs/EURO_V6/fig1_v2.5_bars.png",
        height = 8)  
 
 # Stacked bar chart facet 
-desc_data %>% 
+bar_int <- desc_data %>% 
   mutate(lab = factor(lab, levels = plot_rank_order_any)) %>% 
   ggplot(aes(x = mean, y = lab, fill = variant, color = variant))+
   geom_col(data = . %>% filter( intervention=="Max. effort"), position = position_dodge(width = 0.9), alpha = 1) +
   geom_col(data = . %>% filter( intervention=="Any effort"), position = position_dodge(width = 0.9), alpha = 0.4) +
   geom_tile(aes(y=NA_integer_, alpha = factor(intervention)))+
+#  scale_fill_manual(values = c("#009E73", "#56B4E9", "#E69F00"))+
+#  scale_color_manual(values = c("#009E73","#56B4E9", "#E69F00"))+
+  scale_fill_manual(values = c("#66c2a5", "#fc8d62", "#8da0cb"))+
+  scale_color_manual(values = c("#66c2a5","#fc8d62", "#8da0cb"))+
+  
   facet_wrap(~variant)+
   theme_cowplot() +
-  theme(axis.text    = element_text(size = 12),
+  theme(axis.text    = element_text(size = 10),
         axis.title = element_text(size = 15),
         legend.text  = element_text(size = 12),
         legend.title = element_text(size = 15),
         legend.position = "bottom",
         strip.background = element_rect(fill = "white", 
                                         color = "black"),
-        
-        #        axis.text.y = element_text(color = colour_tab %>% 
-        #                                     mutate(lab = factor(lab, levels = plot_order)) %>% 
-        #                                    arrange(lab) %>% 
-        #                                     pull(color_map)),
-        legend.box = "vertical",
         legend.box.just = "left",
         legend.margin=margin()) +
   labs(x = "Mean % of days intervention enacted", 
        y = "", 
        fill = "Variant period",
        alpha = "NPI strength")+
-  guides(fill = guide_legend(nrow = 1),
+  guides(fill = FALSE,
          alpha = guide_legend(nrow = 1),
          color = FALSE)
 
-ggsave("figs/EURO_V6/fig1_v3.5_bar_facet_rank.png",
+ggsave("figs/EURO_V6/fig1_v3_bar_facet_rank.png",
        width = 10,
        height = 6)  
+
+
+mean_vac <- vaccine_data_owin %>% 
+  select(country, date, V_all) %>% 
+  group_by(date) %>% 
+  summarise(V_all = mean(V_all)) %>% 
+  mutate(country = "Mean")
+
+all_vac_data <- bind_rows(vaccine_data_owin %>% 
+            select(country, date, V_all), mean_vac)
+  
+filter_all_vac <- all_vac_data %>% 
+  filter(country %in% c("Mean", "United Kingdom", "Portugal", "Ukraine")) %>% 
+  #mutate(country = factor(country, levels = c("Mean", "United Kingdom", "Portugal", "Ukraine")))
+  mutate(country = factor(country, levels = c("Ukraine", "Portugal", "United Kingdom", "Mean")))
+
+vac_int <- ggplot()+
+  geom_rect(aes(xmin = as.Date("2020-01-20"), xmax = as.Date("2020-11-22"), ymin = 0.9, ymax = 1), alpha = 0.6, fill = "#66c2a5")+
+  geom_rect(aes(xmin = as.Date("2020-11-22"), xmax = as.Date("2021-05-10"), ymin = 0.9, ymax = 1), alpha = 0.6, fill = "#fc8d62")+
+  geom_rect(aes(xmin = as.Date("2021-05-10"), xmax = as.Date("2021-09-30"), ymin = 0.9, ymax = 1), alpha = 0.6, fill = "#8da0cb")+
+  geom_rect(aes(xmin = as.Date("2020-01-20"), xmax = as.Date("2020-11-22"), ymin = 0.9, ymax = 1), alpha = 1, color = "#66c2a5", fill = NA)+
+  geom_rect(aes(xmin = as.Date("2020-11-22"), xmax = as.Date("2021-05-10"), ymin = 0.9, ymax = 1), alpha = 1, color = "#fc8d62", fill = NA)+
+  geom_rect(aes(xmin = as.Date("2021-05-10"), xmax = as.Date("2021-09-30"), ymin = 0.9, ymax = 1), alpha = 1, color = "#8da0cb", fill = NA)+
+  geom_text(aes(x=  as.Date("2020-06-16"), y = 0.95, label = "Wild type"))+
+  geom_text(aes(x=  as.Date("2021-02-08"), y = 0.95, label = "Alpha"))+
+  geom_text(aes(x=  as.Date("2021-07-20"), y = 0.95, label = "Delta"))+
+  geom_line(data = all_vac_data, aes(x = date, y= V_all, group = country), color = "grey70", alpha = 0.7)+
+  geom_line(data = filter_all_vac, aes(x = date, y= V_all, color = country), size = 1, alpha =0.9)+
+  scale_color_manual(values = c( "grey30",  "#e78ac3", "#a6d854", "#ffd92f"), breaks = c("Mean", "United Kingdom", "Portugal", "Ukraine"))+
+  scale_x_date(breaks = "3 months", date_labels = "%b-%y")+
+  theme_cowplot() +
+  theme(axis.text    = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        legend.text  = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.position = "bottom",
+        strip.background = element_rect(fill = "white", 
+                                        color = "black"),
+        legend.box.just = "left",
+        legend.margin = margin()) +
+  labs(x = "", 
+       y = "Proportion of population\n received 1 dose", 
+       fill = "Variant period",
+       color = "Country")
+
+plot_grid(
+  bar_int ,
+  NULL,
+  vac_int , 
+  labels = c("A", "", "B"),
+  ncol = 1, rel_heights = c(0.55, 0.05, 0.45), align = "hv", axis = "l")
+  
+ggsave("figs/EURO_V6/fig1_v5.png",
+       width = 9,
+       height = 8)  
 
 
 # Mean percentage of days intervetions were in place 
@@ -340,33 +399,20 @@ desc_data %>%
   mutate(marker = row_number()) %>% 
   filter(marker == 1)
 
-# Variables to remove for each scenario
+# Variables to remove for each scenario 
+# Interevtions at 100% thoughout study periods
 desc_data %>%
   filter(mean == 100)
 
-
-
-joined_max_S1_W %>% 
-  select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
-  group_by(country) %>% 
-  mutate(tot = row_number()) %>% 
-  summarise_at(c(policy_raw_desc), sum)
-
-
-
-
-
-joined_max_S1_D %>% 
-  select(-c(V_18_60_adj, V_60_adj, V_tot_adj, median, lower_90, upper_90, lower_50, upper_50)) %>% 
-  group_by(country) %>% 
-  mutate(tot = row_number()) %>% 
-  summarise_at(c(policy_raw_desc), sum) %>% 
-  mutate_at(c(policy_raw_desc), function(x){(x/no_days_delta)*100}) %>% 
-  summarise_at(c(policy_raw_desc), mean)
-
+# First reported case
+# 2020-01-20
+covidregionaldata::get_national_data(WHO_cty, source = "who") %>% 
+  select(date, country, cases_new) %>% 
+  filter(date < as.Date("2021-10-01")) %>% 
+  filter(cases_new != 0)
 
 ###
-# New plot
+# Supplementary plot time-series
 max_pro_cnt <- joined$s1_full_max %>% 
   dplyr::select(date, cnt, policy_raw) %>%
   data.table::as.data.table() %>% 
@@ -429,13 +475,6 @@ any_pro_cnt <- joined$s1_full_mid %>%
            nrow()) %>% 
   mutate(effort = "Any effort")
 
-
-# Frist reported case
-covidregionaldata::get_national_data(WHO_cty, source = "who") %>% 
-  select(date, country, cases_new) %>% 
-  filter(date < as.Date("2021-10-01")) %>% 
-  filter(cases_new != 0)
-
 # Key dates
 markers <- tibble(marker = factor(c("first", "alpha", "delta"), levels = c("first", "alpha", "delta"), labels = c("First case\ndetected", "Alpha becomes\ndominant variant", "Delta becomes\ndominant variant")),
                   date = c(as.Date("2020-01-20"), as.Date("2020-11-23"), as.Date("2021-05-11")))
@@ -452,8 +491,8 @@ bind_rows(max_pro_cnt, any_pro_cnt) %>%
                  linetype = marker))+
   scale_color_manual(values = c("#66c2a5", "#fc8d62"), label = c("Any effort", "Max effort"))+
   scale_linetype_manual(values = c(3,4,5))+
-  scale_x_date()
-  facet_wrap(~lab, ncol = 4) + 
+# scale_x_date()
+  facet_wrap(~lab, ncol = 2) + 
   xlim(as.Date("2020-01-01"), as.Date("2021-09-30")) + 
   labs(x = "", y = "Proportion of countries with NPI implemented", 
        title = "", color = "NPI strength", linetype = "") +
@@ -468,15 +507,10 @@ bind_rows(max_pro_cnt, any_pro_cnt) %>%
         axis.text.x = element_text(angle = 0))+
   guides(color = guide_legend(nrow = 1), linetype = guide_legend(nrow = 1))
 
-joined$s1_full_mid %>% 
-  filter(!is.na(median)) %>% 
-  arrange(date)
 
-any_pro_cnt %>% 
-  as_tibble() %>% 
-  filter(value != 0) %>% 
-  arrange(date)
-
+ggsave("figs/EURO_V6/fig_S2_NPI_time.png",
+       width = 8,
+       height = 10)  
 
 
 
