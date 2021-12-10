@@ -784,3 +784,48 @@ r2_data <- lapply(res_tab$select,"[[",3) %>%
                             levels = c(-1, -14, -28),
                             labels = c("1 day", "14 days", "28 days")))
 
+
+
+# Average mean absolute error calcualtion
+
+# Wild = 2, 14, 26
+# Alpha = 4, 16, 28
+# Delta = 6, 18, 30
+
+tar <- c(2, 14, 26)
+
+r <- chosen_models[tar] %>% 
+  map(~.$residuals) %>% 
+  map(data.frame) %>% 
+  map(rownames_to_column) %>% 
+  map(as_tibble) %>% 
+  map(setNames, c("rowname", "value")) %>% 
+  map(mutate, iso3c = substr(rowname,1,3),
+      date = substr(rowname,5,14)) %>% 
+  map(dplyr::select, -rowname) %>% 
+  map(group_by, iso3c) %>% 
+  map(summarise, value = mean(abs(value))) %>% 
+  map(arrange, desc(value)) %>% 
+  map(mutate, 
+      region = "WHO Europe",
+      country = countrycode::countrycode(iso3c,
+                                         origin = "iso3c",
+                                         destination = "country.name")) %>% 
+  map(rownames_to_column, var = "rank") %>% 
+  bind_rows()
+
+r %>% 
+  group_by(country) %>% 
+  mutate(rank = as.numeric(rank)) %>% 
+  summarise(rank = mean(rank),
+            value = mean(value)) %>% 
+  arrange(rank) %>% 
+  head(3)
+
+r %>% 
+  group_by(country) %>% 
+  mutate(rank = as.numeric(rank)) %>% 
+  summarise(rank = mean(rank),
+            value = mean(value)) %>% 
+  arrange(rank) %>% 
+  tail(3)
