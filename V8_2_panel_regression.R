@@ -83,7 +83,7 @@ for(i in 1:nrow(res_tab)){
 # Save as crashes are common here after if you try and view data
 save(res_tab, res_tab_forward, file = "results/res_tab_V8.rdata")
 
-load("results/res_tab_V8.rdata")
+#load("results/res_tab_V8.rdata")
 
 # Chosen model for each scenario by BIC and AIC values respectively
 chosen <- lapply(res_tab$select,"[[",3) %>% 
@@ -105,7 +105,6 @@ p_table <- res_tab[1:3] %>%
   left_join(chosen, by = "set")
 
 p_val <- list()
-
 
 # Set p-values for each coefficient and each model set
 for(i in p_table$set %>% unique){
