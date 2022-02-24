@@ -21,7 +21,8 @@ pacman::p_load(tidyverse,
                ggh4x,
                covidregionaldata,
                MMWRweek,
-               imputeTS)
+               imputeTS,
+               sf)
 
 # Custom functions for regression exercise
 source(here("aicbic_plm.R"))

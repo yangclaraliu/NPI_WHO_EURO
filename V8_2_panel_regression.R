@@ -13,37 +13,20 @@ country_list <- unique(joined$s1_W_mid$cnt) %>%
   mutate(country_name = countrycode::countrycode(cnt, "iso3c", "country.name"),
          region = "WHO EUROPE") 
 
-# Countries with no data for PHSMs
-cnt_remove <- joined$s1_W_mid %>% 
-  filter(is.na(V_all_adj)) %>% 
-  distinct(country) %>% 
-  pull()
-
-
 # Function to prepare data for regression analysis
 gen_regress_data <- function(scen){
   
   # Remove coutries without required data 
   
   # S1 Multi-level effort
-  if(scen == "mid_W") tmp <- joined$s1_W_mid %>% 
-      filter(!country %in% cnt_remove) 
-  
-  if(scen == "mid_A") tmp <- joined$s1_A_mid %>% 
-      filter(!country %in% cnt_remove) 
-  
-  if(scen == "mid_D") tmp <- joined$s1_D_mid %>% 
-      filter(!country %in% cnt_remove) 
+  if(scen == "mid_W") tmp <- joined$s1_W_mid 
+  if(scen == "mid_A") tmp <- joined$s1_A_mid 
+  if(scen == "mid_D") tmp <- joined$s1_D_mid 
   
   # S2 Max effort
-  if(scen == "max_W") tmp <- joined$s1_W_max %>% 
-      filter(!country %in% cnt_remove) 
-  
-  if(scen == "max_A") tmp <- joined$s1_A_max %>% 
-      filter(!country %in% cnt_remove) 
-  
-  if(scen == "max_D") tmp <- joined$s1_D_max %>% 
-      filter(!country %in% cnt_remove) 
+  if(scen == "max_W") tmp <- joined$s1_W_max 
+  if(scen == "max_A") tmp <- joined$s1_A_max 
+  if(scen == "max_D") tmp <- joined$s1_D_max 
   
   tmp %>% 
     ungroup %>% 
@@ -358,7 +341,7 @@ effect_data %>%
          shape = guide_legend(nrow = 2))
 
 
-ggsave("figs/figs/multi_effect.png",
+ggsave("figs/figs/fig2.png",
        width = 12,
        height = 6)  
 
@@ -478,9 +461,9 @@ r2_data <- lapply(res_tab$select,"[[",3) %>%
 # Alpha = 4, 16, 28
 # Delta = 6, 18, 30
 
-tar <- c(2, 14, 26)
 
-r <- chosen_models[tar] %>% 
+# Wild type MAE
+WT_MAE <- chosen_models[c(2)] %>% 
   map(~.$residuals) %>% 
   map(data.frame) %>% 
   map(rownames_to_column) %>% 
@@ -491,27 +474,149 @@ r <- chosen_models[tar] %>%
   map(dplyr::select, -rowname) %>% 
   map(group_by, iso3c) %>% 
   map(summarise, value = mean(abs(value))) %>% 
-  map(arrange, desc(value)) %>% 
+  map(arrange, value) %>% 
   map(mutate, 
       region = "WHO Europe",
       country = countrycode::countrycode(iso3c,
                                          origin = "iso3c",
                                          destination = "country.name")) %>% 
   map(rownames_to_column, var = "rank") %>% 
-  bind_rows()
-
-r %>% 
-  group_by(country) %>% 
+  bind_rows() %>% 
+  group_by(country, iso3c) %>% 
   mutate(rank = as.numeric(rank)) %>% 
   summarise(rank = mean(rank),
             value = mean(value)) %>% 
   arrange(rank) %>% 
-  head(3)
+  ungroup() %>% 
+  mutate(max = max(value)) %>% 
+  mutate(adj_value = value/max)
 
-r %>% 
-  group_by(country) %>% 
+# Alpha MAE
+A_MAE <- chosen_models[c(4)] %>% 
+  map(~.$residuals) %>% 
+  map(data.frame) %>% 
+  map(rownames_to_column) %>% 
+  map(as_tibble) %>% 
+  map(setNames, c("rowname", "value")) %>% 
+  map(mutate, iso3c = substr(rowname,1,3),
+      date = substr(rowname,5,14)) %>% 
+  map(dplyr::select, -rowname) %>% 
+  map(group_by, iso3c) %>% 
+  map(summarise, value = mean(abs(value))) %>% 
+  map(arrange, value) %>% 
+  map(mutate, 
+      region = "WHO Europe",
+      country = countrycode::countrycode(iso3c,
+                                         origin = "iso3c",
+                                         destination = "country.name")) %>% 
+  map(rownames_to_column, var = "rank") %>% 
+  bind_rows() %>% 
+  group_by(country, iso3c) %>% 
   mutate(rank = as.numeric(rank)) %>% 
   summarise(rank = mean(rank),
             value = mean(value)) %>% 
-  arrange(rank) %>% 
-  tail(3)
+  arrange(rank)%>% 
+  ungroup() %>% 
+  mutate(max = max(value)) %>% 
+  mutate(adj_value = value/max)
+
+
+# Delta MAE
+D_MAE <- chosen_models[c(6)] %>% 
+  map(~.$residuals) %>% 
+  map(data.frame) %>% 
+  map(rownames_to_column) %>% 
+ # as_tibble()
+  #map(rownames_to_column) %>% 
+ # map(as_tibble) %>% 
+  map(setNames, c("rowname", "value")) %>% 
+  map(mutate, iso3c = substr(rowname,1,3),
+      date = substr(rowname,5,14)) %>% 
+  map(dplyr::select, -rowname) %>% 
+  map(group_by, iso3c) %>% 
+  map(summarise, value = mean(abs(value))) %>% 
+  map(arrange, value) %>% 
+  map(mutate, 
+      region = "WHO Europe",
+      country = countrycode::countrycode(iso3c,
+                                         origin = "iso3c",
+                                         destination = "country.name")) %>% 
+  map(rownames_to_column, var = "rank") %>% 
+  bind_rows() %>% 
+  group_by(country, iso3c) %>% 
+  mutate(rank = as.numeric(rank)) %>% 
+  summarise(rank = mean(rank),
+            value = mean(value)) %>% 
+  arrange(rank)%>% 
+  ungroup() %>% 
+  mutate(max = max(value)) %>% 
+  mutate(adj_value = value/max)
+
+
+# World shp
+world <- st_read("shp/World_Countries__Generalized_.shp") 
+
+cnt_study <- WT_MAE %>%
+  pull(iso3c)
+
+# Filter to just WHO Europe countries
+WHO_EUROPE_SF <- world %>% 
+  mutate(cnt = countrycode(COUNTRY,"country.name", "iso3c")) %>% 
+  filter(cnt %in% cnt_study)
+
+# Plot of WT MAE
+WT_map <- ggplot()+
+  geom_sf(data= world,fill="grey90",colour="white") +
+  geom_sf(data = WHO_EUROPE_SF %>% 
+            left_join(., WT_MAE, by = c("cnt" = "iso3c")), aes(fill = rank)) +
+  colorspace::scale_fill_continuous_sequential(palette = "oranges", rev = TRUE, begin = 0, end = 0.7,
+                                               guide= guide_colorsteps(show.limits=TRUE, barwidth=15, title.position="top", frame.colour = "black"))+
+  
+  labs(fill = "Mean Absolute Error Rank")+
+  theme_void()+
+  coord_sf(xlim=c(-25, 85), ylim=c(30, 70))+
+  theme(legend.position = "bottom")
+
+A_map <- ggplot()+
+  geom_sf(data= world,fill="grey90",colour="white") +
+  geom_sf(data = WHO_EUROPE_SF %>% 
+            left_join(., A_MAE, by = c("cnt" = "iso3c")), aes(fill = rank)) +
+  colorspace::scale_fill_continuous_sequential(palette = "oranges", rev = TRUE, begin = 0, end = 0.7,
+                                               guide= guide_colorsteps(show.limits=TRUE, barwidth=15, title.position="top", frame.colour = "black"))+
+  
+  labs(fill = "Mean Absolute Error Rank")+
+  theme_void()+
+  coord_sf(xlim=c(-25, 85), ylim=c(30, 70))+
+  theme(legend.position = "bottom")
+
+D_map <- ggplot()+
+  geom_sf(data= world,fill="grey90",colour="white") +
+  geom_sf(data = WHO_EUROPE_SF %>% 
+            left_join(., D_MAE, by = c("cnt" = "iso3c")), aes(fill = rank)) +
+  colorspace::scale_fill_continuous_sequential(palette = "oranges", rev = TRUE, begin = 0, end = 0.7,
+                       guide= guide_colorsteps(show.limits=TRUE, barwidth=15, title.position="top", frame.colour = "black"))+
+  
+  labs(fill = "Mean Absolute Error Rank")+
+  theme_void()+
+  coord_sf(xlim=c(-25, 85), ylim=c(30, 70))+
+  theme(legend.position = "bottom")
+
+
+##
+
+plot_no_legend <- plot_grid(
+  WT_map + theme(legend.position = "none"),
+  A_map + theme(legend.position = "none"), 
+  D_map + theme(legend.position = "none"), 
+  labels = c("A", "B", "C"),
+  ncol = 1)
+
+legend <- get_legend(WT_map + theme(legend.box.margin = margin(0,0,0,0)))
+
+plot_grid(plot_no_legend, legend, ncol = 1, rel_heights = c(10, 1), align = "h")
+
+
+ggsave("figs/figs/figS3.png",
+       width = 6,
+       height = 12)  
+
