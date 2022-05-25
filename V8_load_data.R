@@ -26,7 +26,7 @@ pacman::p_load(tidyverse,
 
 # Custom functions for regression exercise
 source(here("aicbic_plm.R"))
-source(here("V4_select_var.R"))  # # # # 
+source(here("select_variable.R"))
 source(here("find_lag.R"))
 source(here("plot_all_lags.R"))
 source(here("aicbic_select.R"))
@@ -41,7 +41,7 @@ joined <- readRDS("data/joined_all_V8.RDS")
 
 # Only run the following script to see how it was compiled
 
-oxford_data       <- read_csv("data/NPI_OX.csv")    # Oxford government response tracker data for NPIs
+oxford_data       <- read_csv("data/NPI_OX.csv")    # Oxford government response tracker data for NPIs/PHSMs
 vaccine_data_owin <- read_csv("data/VAC_OWIN.csv")  # Vaccine coverage data, calculated from script - 
 rt_estimates      <- read_csv("data/rt_EURO.csv")   # Rt estimate data, calculated from script - 
 

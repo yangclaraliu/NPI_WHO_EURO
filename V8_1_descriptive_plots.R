@@ -223,7 +223,7 @@ bar_int <- desc_data %>%
   labs(x = "Mean % of days intervention enacted", 
        y = "", 
        fill = "Variant period",
-       alpha = "NPI strength")+
+       alpha = "PHSM strength")+
   guides(fill = FALSE,
          alpha = guide_legend(nrow = 1),
          color = FALSE)
@@ -286,7 +286,7 @@ ggsave("figs/figs/fig1.png",
        height = 8)  
 
 
-# Mean percentage of days intervetions were in place 
+# Mean percentage of days PHSM were in place 
 desc_data %>% 
   group_by(variant, intervention) %>%
   mutate(mean2 = mean(mean)) %>% 
@@ -300,7 +300,7 @@ desc_data %>%
   filter(marker == 1)
 
 # Variables to remove for each scenario 
-# Interevtions at 100% thoughout study periods
+# PHSM at 100% throughout study periods
 desc_data %>%
   filter(mean == 100)
 
@@ -308,7 +308,7 @@ desc_data %>%
 
 ###
 
-# Data manipulation for supplemetary plot 
+# Data manipulation for supplementary plot 
 max_pro_cnt <- joined$s1_full_max %>% 
   dplyr::select(date, cnt, policy_raw_desc) %>%
   data.table::as.data.table() %>% 
@@ -375,12 +375,12 @@ any_pro_cnt <- joined$s1_full_mid %>%
 markers <- tibble(marker = factor(c("first", "alpha", "delta"), levels = c("first", "alpha", "delta"), labels = c("First case\ndetected", "Alpha becomes\ndominant variant", "Delta becomes\ndominant variant")),
                   date = c(as.Date("2020-01-20"), as.Date("2020-11-23"), as.Date("2021-05-11")))
 
-# Supplemetay plot of proprtion of countries with PHSMs implemeted timeseries
+# Supplementary plot of proportion of countries with PHSMs implemented time series
 bind_rows(max_pro_cnt, any_pro_cnt) %>% 
   left_join(., joined$policy_dic %>% 
               filter(policy_code %in% policy_raw_desc), by = c("variable" = "policy_code")) %>%
   as_tibble() %>%
-  mutate(lab = factor(lab, levels = original_order)) %>% 
+  mutate(lab = factor(lab, levels = joined$policy_dic$lab)) %>% 
   ggplot(., aes(x = date,  y = value, color = effort)) +
   geom_step(size = 1.2) +
   geom_vline(data = markers,

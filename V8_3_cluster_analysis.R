@@ -1,16 +1,14 @@
+# Script for cluster analysis
 
-source("V4_plot_cluster.R")
-
+# Read in data if not already done so...
 joined <- readRDS("data/joined_all_V8.RDS")
 
-# Remove vaccination from wild type scenarios, as none occured
+# Remove vaccination from wild type scenarios, as none occurred
 
 # Full number of countries, no age stratification
 policy_raw_wild <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
 
 policy_raw_all <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
-
-
 
 # [START]
 # this needs to be ran only once, and it may take some time
@@ -27,6 +25,7 @@ hcd_W <-  joined %>%
       nboot = 10000)
 # 
 save(hcd_W, file = "results/hcd_V8_W.rdata")
+load("results/hcd_V8_W.rdata")
 
 # Full TS, Alpha and Delta variants
 hcd_FAD <-  joined %>%
@@ -40,7 +39,7 @@ hcd_FAD <-  joined %>%
       nboot = 10000)
 # 
 save(hcd_FAD, file = "results/hcd_V8_FAD.rdata")
-
+load("results/hcd_V8_FAD.rdata")
 # [END]
 
 # Wild type

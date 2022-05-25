@@ -16,8 +16,6 @@ country_list <- unique(joined$s1_W_mid$cnt) %>%
 # Function to prepare data for regression analysis
 gen_regress_data <- function(scen){
   
-  # Remove coutries without required data 
-  
   # S1 Multi-level effort
   if(scen == "mid_W") tmp <- joined$s1_W_mid 
   if(scen == "mid_A") tmp <- joined$s1_A_mid 
@@ -66,7 +64,7 @@ for(i in 1:nrow(res_tab)){
 # Save as crashes are common here after if you try and view data
 save(res_tab, res_tab_forward, file = "results/res_tab_V8.rdata")
 
-#load("results/res_tab_V8.rdata")
+load("results/res_tab_V8.rdata")
 
 # Chosen model for each scenario by BIC and AIC values respectively
 chosen <- lapply(res_tab$select,"[[",3) %>% 
@@ -401,11 +399,8 @@ ggsave("figs/figs/max_effect.png",
 # Darbin Wu test 
 # Fixed/random effects test
 tmp <- joined$s1_full_max %>% 
-  filter(!country %in% cnt_remove)
-
-tmp %>% 
   ungroup %>% 
-  left_join(country_list %>% dplyr::select(-name), by = "cnt") -> tmp
+  left_join(country_list %>% dplyr::select(-name), by = "cnt")
 
 tmp <- pdata.frame(tmp, index=c("cnt","date"), drop.index=TRUE, row.names=TRUE)
 
@@ -424,7 +419,6 @@ f %>%
 map2(g1, g2, phtest)
 
 # P-value less than 0.05, reject null hypothesis of random effects
-
 
 
 # R-squared data for each models
