@@ -4,17 +4,27 @@
 # library("MMWRweek")
 
 # WHO Europe country names
-WHO_cty <- c("Albania","Andorra","Armenia","Austria","Azerbaijan","Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Georgia","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania","Luxembourg","Malta","Moldova","Monaco","Montenegro","Netherlands","North Macedonia","Norway","Poland","Portugal","Romania","Russia","San Marino","Serbia","Slovakia","Slovenia","Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine","United Kingdom","Uzbekistan")
+WHO_cty <- c("Albania","Andorra","Armenia","Austria","Azerbaijan",
+             "Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia",
+             "Cyprus","Czechia","Denmark","Estonia","Finland","France",
+             "Georgia","Germany","Greece","Hungary","Iceland","Ireland",
+             "Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania",
+             "Luxembourg","Malta","Moldova","Monaco","Montenegro",
+             "Netherlands","North Macedonia","Norway","Poland","Portugal",
+             "Romania","Russia","San Marino","Serbia","Slovakia","Slovenia",
+             "Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine",
+             "United Kingdom","Uzbekistan")
 
 # Read in Our world in numbers raw vaccination data (Only total population)
 # 52 countries 
-win_data <- read_csv("data/owid-covid-data.csv")
+# win_data <- read_csv("data/owid-covid-data.csv")
+win_data <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv")
 
 V1_data <- win_data %>% 
   select(1,3,4, 42) %>% 
   mutate(location = if_else(location == "Bosnia and Herzegovina", "Bosnia & Herzegovina", location)) %>% # Change naming of Bosnia to WHO format
   filter(location %in% WHO_cty) %>% 
-  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
+  # filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
   rename(V1 = people_vaccinated_per_hundred)
 
 # Vector of iso codes for 52 WHO Europe countries
@@ -23,7 +33,7 @@ iso <- V1_data %>%
   distinct() %>% 
   pull()
 
-# Function to interpolate NAs from after data of first vaccination
+# Function to interpolate NAs from after date of first vaccination
 clean_V1 <- function(i){
 
 tmp <- which(!is.na(V1_data %>% 
@@ -54,18 +64,26 @@ V1_cleaned <- map(1:length(iso), clean_V1) %>%
 
 # Save cleaned as Our World in Numbers vaccine data (2020-01-01 to 2021-09-30)
 V1_cleaned %>% 
+  group_by(location) %>% 
   mutate(max_cnt = max(V1)) %>% 
   mutate(V1_adj = V1/max_cnt) %>%
   select(cnt = iso_code, country = location, date, V_all = V1, V_all_adj = V1_adj) %>% 
   group_by(country, cnt) %>% 
   arrange(date) %>% 
-  complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day")) %>%
+  # complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day")) %>%
   mutate_if(is.numeric, ~replace_na(., 0)) %>% 
   ungroup() %>%
-  mutate(V_all = V_all/100) %>% 
-  write_csv(., "data/VAC_OWIN.csv")
+  mutate(V_all = V_all/100) -> V1_cleaned2
 
+V1_cleaned2 %>% 
+  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
+  ggplot(., aes(x = date, y = V_all_adj)) +
+  geom_point() +
+  facet_wrap(~country )
 
+V1_cleaned2  %>% 
+  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
+  write_csv(., "data/VAC_OWIN_v2.csv")
 
 #~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~
 

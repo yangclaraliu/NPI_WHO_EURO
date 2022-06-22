@@ -1,30 +1,238 @@
 # Script for cluster analysis
+require(tidyverse)
+require(pvclust)
+require(factoextra)
 
 # Read in data if not already done so...
-joined <- readRDS("data/joined_all_V8.RDS")
+# joined <- readRDS("data/joined_all_V8.RDS")
+joined <- readRDS("data/joined_v9.rds")
+names(joined)
 
 # Remove vaccination from wild type scenarios, as none occurred
 
 # Full number of countries, no age stratification
 policy_raw_wild <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
-
-policy_raw_all <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
+policy_raw_all  <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
 
 # [START]
 # this needs to be ran only once, and it may take some time
 # this segment conducts the temporal clustering analyses.
 
 # Wild type
-hcd_W <-  joined %>%
-  .[c("s1_W_mid","s1_W_max")] %>%
-  map(ungroup) %>%
-  map(dplyr::select, policy_raw_wild) %>%
-  map(pvclust::pvclust,
-      method.hclust = "ward.D2",
-      method.dist = "euclidean",
-      nboot = 10000)
+hcd_W <- list()
+set <- names(joined)
+
+#### bootstrapping ####
+# for(s in set){
+#   
+#   find <- grepl("con",s) & (grepl("A|D",s))
+#   tags_tmp <- policy_raw_wild
+#   if(find) tags_tmp <- policy_raw_all
+#   
+#   hcd_W[[s]] <-
+#     joined %>%
+#     .[!grepl("full", names(.))] %>% 
+#     .[grepl(s, names(.))] %>% 
+#     map(ungroup) %>%
+#     map(dplyr::select, tags_tmp) %>%
+#     map(pvclust::pvclust,
+#         method.hclust = "ward.D2",
+#         method.dist = "euclidean",
+#         nboot = 5000,
+#         parallel = T)
+#   
+#   print(s)
+# }
+clust_bs <- readRDS("~/GitHub/NPI_WHO_EURO/data/hcd_W.rds")
+
+#### calculate the euclidean distance ####
+distance_all <- list()
+
+for(s in set){
+
+  find <- grepl("con",s) & (grepl("A|D",s))
+  tags_tmp <- policy_raw_wild
+  if(find) tags_tmp <- policy_raw_all
+  
+  distance_all[[s]] <- joined %>%
+    .[!grepl("full", names(.))] %>% 
+    .[grepl(s, names(.))] %>% 
+    .[[1]] %>% 
+    ungroup %>% 
+    select(., tags_tmp) %>% 
+    t %>% 
+    get_dist(., method = "euclidean")
+ 
+  print(s)
+}
+
+distance_all %<>% 
+  map(as.matrix) %>% 
+  map(reshape2::melt) 
+
+#### calculate the correlation ####
+require(Hmisc)
+corr_all <- list()
+
+for(s in set){
+  
+  find <- grepl("con",s) & (grepl("A|D",s))
+  tags_tmp <- policy_raw_wild
+  if(find) tags_tmp <- policy_raw_all
+  
+  corr_all[[s]] <- joined %>%
+    .[!grepl("full", names(.))] %>% 
+    .[grepl(s, names(.))] %>% 
+    .[[1]] %>% 
+    ungroup %>% 
+    select(., tags_tmp) %>% 
+    as.matrix %>% 
+    rcorr %>% 
+    .$r %>% 
+    as.matrix %>% 
+    reshape2::melt()
+  
+  print(s)
+}
+
+#### combine measures ####
+lapply(1:length(distance_all),
+       function(x){
+         distance_all[[x]] %>% 
+           rename(distance = value) %>% 
+           left_join(corr_all[[x]] %>% 
+                       rename(corr = value),
+                     by = c("Var1", "Var2")) %>% 
+           filter(Var1 != Var2) # %>% 
+           # filter(corr >= 0.7)
+       }) %>% 
+  bind_rows() %>% 
+  tibble %>% 
+  ggplot(., aes(x = distance, y = corr)) +
+  geom_point()
+
+#### cut trees ####
+clust_all %>% 
+    map(cutree, h = c(30, 40, 50)) %>% 
+    map(t) -> clust_pruned
+
+#### draw ####
+m <- clust_bs[[1]]
+
+gen_rect <- function(m = NULL,
+                     border = NULL,
+                     alpha = 0.95,
+                     type = "geq",
+                     pv = "bp",
+                     max.only = F){
+  len <- nrow(m$edges)
+  member <- hc2split(m$hclust)$member
+  order <- m$hclust$order
+  usr <- par("usr")
+  xwd <- usr[2] - usr[1]
+  ywd <- usr[4] - usr[3]
+  cin <- par()$cin
+  if (is.null(border)) {
+    border <- c(si = 4, au = 2, bp = 3)[pv]
+  }
+  ht <- c()
+  j <- 1
+  if (is.na(pm <- pmatch(type, c("geq", "leq", "gt", "lt")))) 
+    stop("Invalid type argument: see help(pvrect)")
+  
+  rect_info <- list()
+  
+  for (i in (len - 1):1) {
+    
+    if (pm == 1) {
+      wh <- (m$edges[i, pv] >= alpha)
+    } else if (pm == 2) {
+      wh <- (m$edges[i, pv] <= alpha)
+    } else if (pm == 3) {
+      wh <- (m$edges[i, pv] > alpha)
+    } else if (pm == 4) {
+      wh <- (m$edges[i, pv] > alpha)
+    }
+    
+    if (wh) {
+      mi <- member[[i]]
+      ma <- match(mi, order)
+      if (max.only == FALSE || (max.only && sum(match(ma, 
+                                                      ht, nomatch = 0)) == 0)) {
+        xl <- min(ma)
+        xr <- max(ma)
+        yt <- m$hclust$height[i]
+        yb <- usr[3]
+        mx <- xwd/length(member)/3
+        my <- ywd/200
+        rect_info[[i]] <- c(xl - mx, yb + my, xr + mx, yt + my)
+        j <- j + 1
+      }
+      ht <- c(ht, ma)
+    }
+  }
+  
+  rect_info %<>% 
+    bind_cols() %>% 
+    t %>% 
+    tibble
+  
+  return(rect_info)
+  
+}
+
+plot(clust_bs[[1]])
+pvrect(clust_bs[[1]], max.only = F)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+require(ggdendro)
+  dhc <- as.dendrogram(clust_bs[[1]])
+ddata <- dendro_data(dhc, type = "rectangle")
+
+
+ggplot(segment(ddata)) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + 
+  coord_flip() + 
+  scale_y_reverse(expand = c(0.2, 0)) + 
+  geom_text(data = ddata$labels, 
+            aes(x = x, y = y, label = label), size = 3, vjust = 0.5, hjust = -1.5) +
+  geom_hline(yintercept = c(50)) 
+
+
+plot(clust_bs[[1]])
+pvrect(clust_bs[[1]], max.only = F, pv = "bp")
+
+
+
+joined[[1]] %>% 
+  ggplot(., aes(x = C1, y = C2)) +
+  geom_jitter()
+
+plot(x[[3]], ylim = c(0,40))
+pvrect(x[[3]],max.only = F)
+
+cor.test(joined[[1]]$C1,joined[[1]]$H3)
+
+
+
+stats::dist(joined[[1]][,c("C1","C2")] %>% t,
+            method = "euclidean")
+
 # 
-save(hcd_W, file = "results/hcd_V8_W.rdata")
+save(hcd_W, file = "results/hcd_V8_W.rds")
 load("results/hcd_V8_W.rdata")
 
 # Full TS, Alpha and Delta variants
@@ -36,7 +244,7 @@ hcd_FAD <-  joined %>%
   map(pvclust::pvclust,
       method.hclust = "ward.D2",
       method.dist = "euclidean",
-      nboot = 10000)
+      nboot = 1000)
 # 
 save(hcd_FAD, file = "results/hcd_V8_FAD.rdata")
 load("results/hcd_V8_FAD.rdata")
@@ -44,7 +252,8 @@ load("results/hcd_V8_FAD.rdata")
 
 # Wild type
 plot(hcd_W$s1_W_mid)
-pvrect(hcd_W$s1_W_mid, alpha=0.95, max.only = FALSE)
+pvrect(hcd_W$s1_W_mid, max.only = F)
+pvpick(hcd_W$s1_W_mid)
 
 # Alpha 
 plot(hcd_FAD$s1_A_mid)

@@ -2,7 +2,8 @@
 # Script for Figure 1 and Figure S1
 
 # Read in data (if not already done so)
-joined <- readRDS("data/joined_all_V8.RDS")
+# joined <- readRDS("data/joined_all_V8.RDS")
+joined <- readRDS("data/joined_v9.rds")
 
 # Codes for PHSM of interest 
 policy_raw_desc <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
