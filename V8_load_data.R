@@ -70,8 +70,8 @@ policy_dic <- colnames(oxford_data) %>%
                         2, 2,
                         2, 3, 2, 4)) %>% 
   mutate(cat = case_when(policy_code %in% 
-                           paste0("C",1:7) ~ "Closure & Containment  ",
-                         policy_code == "C8" ~ "Intl Travel Restriction  ",
+                           paste0("C",1:8) ~ "Closure & Containment  ",
+                         # policy_code == "C8" ~ "Intl Travel Restriction  ",
                          policy_code %in%
                            paste0("E", 1:4) ~ "Economic Response  ",
                          policy_code %in%
