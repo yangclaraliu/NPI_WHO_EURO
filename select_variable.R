@@ -1,14 +1,24 @@
 select_var <- function(lag, model_type, criterion, data){
   # initialise
   lags_range = -0:-30
-  f_index <- rep(1, length(policy_raw))
-  f_lags <- sapply(lags_range, 
-                   function(t) paste0("plm::lag(median, ", t, ")~", paste(policy_raw, collapse = " + ")))
+  col_tags <- which(names(data) %in% policy_raw_all)
+  col_tags_labels <- names(data[col_tags])
+  f_index <- rep(1, length(col_tags))
   
+  f_lags <- sapply(lags_range, 
+                   function(t) paste0("plm::lag(median, ", t, ")~", paste(col_tags_labels, collapse = " + ")))
   lag_index_tmp <- which(lags_range == lag)
   f_tmp <- f_lags[lag_index_tmp]#f_lags[optim_lag_index]
+  
+  data %>% 
+    filter(country == "Albania") %>% 
+    pull(median) %>% 
+    plm::lag(., -14) %>% length
+  
+  c(1:10) %>% plm::lag(., -14)
   g <- plm(as.formula(f_tmp), data = data, model = model_type)
   diagnostics <- aicbic_plm(g)
+  
   res <- list(optim_stats = rep(NA,length(f_index)),
               model = list(),
               var_combo = list())
@@ -28,7 +38,7 @@ select_var <- function(lag, model_type, criterion, data){
   
   lapply(1:nrow(test_grid), function(x){
     paste0("plm::lag(median,", lag, ") ~ ",
-           paste(policy_raw[which(test_grid[x,] == 1)], collapse = " + "))
+           paste(col_tags_labels[which(test_grid[x,] == 1)], collapse = " + "))
   }) %>% 
     map(as.formula) %>% 
     map(plm, data = data, model = model_type) -> models_tmp
@@ -42,14 +52,14 @@ select_var <- function(lag, model_type, criterion, data){
   f_index_tmp <- test_grid[which.min(stats_tmp[[criterion]]),] 
   
   # loop backwards
-  for(i in (length(f_index)-2):1){
+  for(i in (length(f_index)-2):3){
     remain <- which(f_index_tmp != 0)
     test_grid <- f_index_tmp %>% 
       slice(rep(1,length(remain)))
     for(j in 1:nrow(test_grid)) test_grid[j,remain[j]] <- 0
     lapply(1:nrow(test_grid), function(x){
       paste0("plm::lag(median,", lag, ") ~ ",
-             paste(policy_raw[which(test_grid[x,] == 1)], collapse = " + "))
+             paste(col_tags_labels[which(test_grid[x,] == 1)], collapse = " + "))
     }) %>% 
       map(as.formula) %>% 
       map(plm, data = data, model = model_type) -> models_tmp
@@ -60,5 +70,6 @@ select_var <- function(lag, model_type, criterion, data){
     test_grid[which.min(stats_tmp[[criterion]]),] -> res$var_combo[[i]]
     f_index_tmp <- test_grid[which.min(stats_tmp[[criterion]]),]  
   }
+  
   return(res)
 }

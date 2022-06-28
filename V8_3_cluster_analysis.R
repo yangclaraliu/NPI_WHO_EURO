@@ -23,28 +23,31 @@ hcd_W <- list()
 set <- names(joined)
 
 #### bootstrapping ####
-for(s in set){
+# for(s in set){
+# 
+#   # find <- grepl("con",s) & (grepl("A|D",s))
+#   tags_tmp <- policy_raw_wild
+#   # if(find) tags_tmp <- policy_raw_all
+# 
+#   hcd_W[[s]] <-
+#     joined %>%
+#     .[!grepl("full", names(.))] %>%
+#     .[grepl(s, names(.))] %>%
+#     map(ungroup) %>%
+#     map(dplyr::select, tags_tmp) %>%
+#     map(pvclust::pvclust,
+#         method.hclust = "ward.D2",
+#         method.dist = "euclidean",
+#         nboot = 5000,
+#         parallel = T)
+# 
+#   print(s)
+# }
+# 
 
-  # find <- grepl("con",s) & (grepl("A|D",s))
-  tags_tmp <- policy_raw_wild
-  # if(find) tags_tmp <- policy_raw_all
+# hcd_W %>% flatten() %>% write_rds(., "data/hcd_W.rds")
 
-  hcd_W[[s]] <-
-    joined %>%
-    .[!grepl("full", names(.))] %>%
-    .[grepl(s, names(.))] %>%
-    map(ungroup) %>%
-    map(dplyr::select, tags_tmp) %>%
-    map(pvclust::pvclust,
-        method.hclust = "ward.D2",
-        method.dist = "euclidean",
-        nboot = 5000,
-        parallel = T)
-
-  print(s)
-}
-
-clust_bs <- readRDS("~/GitHub/NPI_WHO_EURO/data/hcd_W.rds")
+clust_bs <- read_rds("data/hcd_W.rds")
 
 #### calculate the euclidean distance ####
 distance_all <- list()
@@ -119,19 +122,18 @@ clust_all %>%
 
 #### generate the rectangles  ####
 # source("fun_draw_clust.R")
-# clust_bs %>% 
+# clust_bs %>%
 #   map(gen_rect) -> rect_all
-# 
+# # 
 # write_rds(rect_all, "data/rect_all.rds")
 
 rect_all <- read_rds("data/rect_all.rds")
-
 
 #### draw dendrogram ####
 require(ggdendro)
 
 for(i in 1:36){
-  dhc <- as.dendrogram(clust_bs[[i]])
+  dhc <- as.dendrogram(clust_bs[[i]]$hclust)
   ddata <- dendro_data(dhc, type = "rectangle")
   ddata$labels %<>% 
     rename(policy_code = label) %>% 
@@ -155,8 +157,8 @@ for(i in 1:36){
     geom_hline(yintercept = c(50), size = 1.1)  +
     geom_rect(data = rect_all[[i]] %>% 
                 mutate(stage = if_else(top >= 50, T, F)),
-              aes(xmin = left, xmax = right,
-                  ymin = 0, ymax = top, color = stage),
+              aes(xmin = left-0.1, xmax = right+0.1,
+                  ymin = 0, ymax = top+1, color = stage),
               fill = NA, linetype = 2, size = 0.4)  +
     theme_bw() +
     scale_fill_manual(values = c('#e78ac3',

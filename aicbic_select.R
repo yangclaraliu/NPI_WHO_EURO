@@ -1,15 +1,25 @@
 aicbic_select <- function(optim_lag, data){
-    
-    AIC_back <- select_var(lag = optim_lag,
+  
+  AIC_back <- select_var(lag = optim_lag,
                            model_type = "within",
                            criterion = "AIC",
                            data = data)
+    
     BIC_back <- select_var(lag = optim_lag,
                            model_type = "within",
                            criterion = "BIC",
                            data = data)
     
-    n <- length(policy_raw) #lazy option - change later
+    AIC_back$optim_stats <- AIC_back$optim_stats[!is.na(AIC_back$optim_stats)]
+    AIC_back$model %<>% discard(is.null)
+    AIC_back$var_combo %<>% discard(is.null)
+
+    BIC_back$optim_stats <- BIC_back$optim_stats[!is.na(BIC_back$optim_stats)]
+    BIC_back$model %<>% discard(is.null)
+    BIC_back$var_combo %<>% discard(is.null)
+    
+    n <- length(AIC_back$optim_stats) #lazy option - change later
+    
     indicators <- data.frame(
         model = 1:n,
         AIC_r2 = sapply(1:n, function(x) summary(AIC_back$model[[x]])$r.squared["rsq"]),
