@@ -17,8 +17,6 @@ lapply(1:36, function(x) names_all[[x]][which(names_all[[x]] %in% policy_raw_dis
                values_to = "VS_include") -> condition_1
 
 # condition 2 = if they are in the variable selection process, were they selected?
-
-
 effect_data %>% 
   filter(criterion == "AIC",
          var != "V_all_adj") %>% 

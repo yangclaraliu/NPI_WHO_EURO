@@ -9,7 +9,6 @@ draw_effect <- function(type_tmp = NULL, # "Any Effort", "Multi-level" OR "Max. 
   cat_color <- c('#66c2a5',
                  '#fc8d62',
                  '#8da0cb')
-  
   data %>% 
     filter(scen_phase == phase_df,
            criterion == criterion_tmp,
