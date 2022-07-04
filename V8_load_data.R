@@ -158,9 +158,11 @@ policy_data_3 <-  policy_data %>%
 rt_estimates <-  rt_estimates %>% 
   mutate(cnt = countrycode(country, "country.name", "iso3c"),
          date = lubridate::ymd(date)) %>%
-  as_tibble()
+  as_tibble() %>% 
+  dplyr::select(-country)
 
-vaccine_data_join <- vaccine_data_owin
+vaccine_data_join <- vaccine_data_owin %>% 
+  dplyr::select(-country)
 
 # Total country in WHO Europe region, n = 53
 # Check to see if these can be resolved later 
@@ -181,10 +183,10 @@ joined_any <- policy_data_3 %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
   group_by(cnt, date) %>%
   left_join(vaccine_data_join,
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   left_join(rt_estimates %>%
               dplyr::select(-X1),
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   ungroup()
 # 
 # 
@@ -198,10 +200,10 @@ joined_con <- policy_data_3 %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
   group_by(cnt, date) %>%
   left_join(vaccine_data_join,
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   left_join(rt_estimates %>%
               dplyr::select(-X1),
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   ungroup()
 # 
 # # Max effort
@@ -214,10 +216,10 @@ joined_max <- policy_data_3 %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
   group_by(cnt, date) %>%
   left_join(vaccine_data_join,
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   left_join(rt_estimates %>%
               dplyr::select(-X1),
-            by = c("country", "cnt", "date")) %>%
+            by = c("cnt", "date")) %>%
   ungroup()
 # 
 # #check if things makes sense

@@ -43,7 +43,7 @@ set <- names(joined)
 # 
 #   print(s)
 # }
-# 
+
 
 # hcd_W %>% flatten() %>% write_rds(., "data/hcd_W.rds")
 
@@ -52,12 +52,12 @@ clust_bs <- read_rds("data/hcd_W.rds")
 #### calculate the euclidean distance ####
 distance_all <- list()
 
-for(s in set){
+for(s in set[1:36]){
 
-  find <- grepl("con",s) & (grepl("A|D",s))
+  # find <- grepl("con",s) & (grepl("A|D",s))
   tags_tmp <- policy_raw_wild
-  if(find) tags_tmp <- policy_raw_all
-  
+  # if(find) tags_tmp <- policy_raw_all
+  # 
   distance_all[[s]] <- joined %>%
     .[!grepl("full", names(.))] %>% 
     .[grepl(s, names(.))] %>% 
@@ -70,6 +70,11 @@ for(s in set){
   print(s)
 }
 
+#### cut trees ####
+distance_all %>% 
+  map(hclust) %>% 
+  map(cutree, h = 50) -> clust_pruned
+
 distance_all %<>% 
   map(as.matrix) %>% 
   map(reshape2::melt) 
@@ -78,11 +83,11 @@ distance_all %<>%
 require(Hmisc)
 corr_all <- list()
 
-for(s in set){
+for(s in set[1:36]){
   
-  find <- grepl("con",s) & (grepl("A|D",s))
+  # find <- grepl("con",s) & (grepl("A|D",s))
   tags_tmp <- policy_raw_wild
-  if(find) tags_tmp <- policy_raw_all
+  # if(find) tags_tmp <- policy_raw_all
   
   corr_all[[s]] <- joined %>%
     .[!grepl("full", names(.))] %>% 
@@ -115,10 +120,6 @@ lapply(1:length(distance_all),
   ggplot(., aes(x = distance, y = corr)) +
   geom_point()
 
-#### cut trees ####
-clust_all %>% 
-    map(cutree, h = c(30, 40, 50)) %>% 
-    map(t) -> clust_pruned
 
 #### generate the rectangles  ####
 # source("fun_draw_clust.R")
@@ -128,6 +129,12 @@ clust_all %>%
 # write_rds(rect_all, "data/rect_all.rds")
 
 rect_all <- read_rds("data/rect_all.rds")
+
+clust_bs %>%
+  map(gen_rect,
+      max.only = T) -> rect_all_max
+
+write_rds(rect_all_max, "data/rect_all_max.rds")
 
 #### draw dendrogram ####
 require(ggdendro)

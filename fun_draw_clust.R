@@ -100,3 +100,78 @@ gen_rect <- function(m = NULL,
   return(rect_info)
   
 }
+
+find_branch <- function(m = NULL,
+                        prune_threshold = 50,
+                        max.only = F){
+  
+  len <- nrow(m$edges)
+  member <- hc2split(m$hclust)$member
+  order <- m$hclust$order
+  usr <- par("usr")
+  xwd <- usr[2] - usr[1]
+  ywd <- usr[4] - usr[3]
+  cin <- par()$cin
+  ht <- c()
+  j <- 1
+  
+  all_rect <- list()
+  
+  for (i in (len - 1):1) {
+    
+      mi <- member[[i]]
+      ma <- match(mi, order)
+      if (max.only == FALSE || (max.only && sum(match(ma, 
+                                                      ht, nomatch = 0)) == 0)) {
+        xl <- min(ma)
+        xr <- max(ma)
+        yt <- m$hclust$height[i]
+        yb <- usr[3]
+        mx <- xwd/length(member)/3
+        my <- ywd/200
+        all_rect[[i]] <- c(xl - mx, yb + my, xr + mx, yt + my)
+        j <- j + 1
+      # }
+      ht <- c(ht, ma)
+    }
+  }
+  
+  all_rect %<>% 
+    bind_cols() %>% 
+    t %>% 
+    data.frame %>% 
+    setNames(c("left",
+               "bottom",
+               "right",
+               "top")) 
+  
+  # attach statistical significance
+  sig <- m$edges$bp >= 0.95; sig <- sig[1:(length(sig)-1)]
+  all_rect %<>% 
+    mutate(sig = sig,
+           remain = top <= prune_threshold) 
+  
+  # detect subset
+  index_subset <- which(all_rect$sig + all_rect$remain == 2)
+  
+  lapply(1:length(index_subset), function(x){
+    all_rect[index_subset,] %>% 
+      filter(left <= all_rect[index_subset,]$left[x],
+             right >= all_rect[index_subset,]$right[x],
+             top > all_rect[index_subset,]$top[x]) 
+  }) %>% map(nrow) %>% 
+    unlist() %>% as.logical() %>% !. -> index_max
+
+  member[index_subset[index_max]] %>% 
+    map(~m$hclust$labels[.]) -> sig_clusters
+  
+  return(sig_clusters)
+
+}
+
+lapply(1:length(index_subset), function(i){
+  all_rect[index_subset,] %>% 
+    filter(left <= all_rect[index_subset,]$left[i],
+           right >= all_rect[index_subset,]$right[i],
+           top > all_rect[index_subset,]$top[i]) 
+})

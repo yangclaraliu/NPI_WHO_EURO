@@ -39,7 +39,7 @@ for(i in 1:36){
   loc_remove <- rep(F, length(policy_raw))
   for(j in 1:length(policy_raw_discrete)){
     test_res <- joined[[i]][policy_raw_discrete[j]] %>% table
-    test_levels <- length(test)
+    test_levels <- length(test_res)
     test_val <- min(test_res)
     if(test_val < 28 | test_levels <2){
       loc_remove[j] <- T
@@ -104,8 +104,6 @@ for(i in 1:nrow(res_tab)){
                             drop.index = T,
                             row.names = T) 
   
-  data_tmp %>% filter(country == "Albania") %>% pull(median) %>% plm::lag(., -14)
-  
   res_tab$select[i] <- list(aicbic_select(optim_lag = res_tab$optim_lag[i], 
                                           data = data_tmp))
   pb$tick()
@@ -118,15 +116,15 @@ for(i in 1:nrow(res_tab)){
 
 
 # Chosen model for each scenario by BIC and AIC values respectively
-# chosen <- lapply(res_tab$select,"[[",3) %>% 
+# chosen <- lapply(res_tab$select,"[[",3) %>%
 #   map(mutate, rk_AIC = rank(AIC_val, ties.method = "first")) %>% # Rank by AIC
 #   map(mutate, rk_BIC = rank(BIC_val, ties.method = "first")) %>% # Rank by BIC
 #   map(filter, rk_AIC == 1| rk_BIC == 1) %>% # Filter to best model by criteria
-#   map(dplyr::select, model, rk_AIC, rk_BIC) %>% 
-#   map(pivot_longer, cols =starts_with ("rk"), names_to = "criterion") %>% 
-#   map(filter, value == 1) %>% 
-#   bind_rows(.id = "set") %>% 
-#   dplyr::select(-value) %>% 
+#   map(dplyr::select, model, rk_AIC, rk_BIC) %>%
+#   map(pivot_longer, cols =starts_with ("rk"), names_to = "criterion") %>%
+#   map(filter, value == 1) %>%
+#   bind_rows(.id = "set") %>%
+#   dplyr::select(-value) %>%
 #   mutate(criterion = gsub("rk_","",criterion))
 
 # write_rds(chosen, "data/chosen.rds")
@@ -364,13 +362,11 @@ effect_size %>%
   mutate(scen_phase = case_when(grepl("s1", scen) ~ "s1",
                               grepl("s2", scen) ~ "s2",
                               grepl("s3", scen) ~ "s3",
-                              grepl("s4", scen) ~ "s3")) %>% 
+                              grepl("s4", scen) ~ "s4")) %>% 
   mutate(virus = case_when(grepl("W", scen, ignore.case = F) ~ "Wild type",
                            grepl("A", scen, ignore.case = F) ~ "Alpha",
                            grepl("D", scen, ignore.case = F) ~ "Delta")) %>% 
   mutate(virus = factor(virus, levels = c("Wild type", "Alpha", "Delta"))) -> effect_data
-
-effect_data %>% filter(scen == "any_s1_A")
 
 write_rds(effect_data, "data/effect_data.rds")
 
@@ -424,57 +420,57 @@ effect_data %>%
          shape = guide_legend(nrow = 2))
 
 
-ggsave("figs/figs/fig2.png",
-       width = 12,
-       height = 6)  
-
-# Max effort
-effect_data %>% 
-  filter(scen_grp == "Max") %>%
-  filter(criterion == "AIC") %>% 
-  ggplot(.) +
-  geom_pointrange(aes(x = optim_lag,
-                      y = estimate,
-                      ymin = x,
-                      ymax = xend,
-                      color = cat,
-                      shape = stat_sig),
-                  size = 0.5) +
-  scale_alpha_manual(values = c(1, 0.5, 0.2)) +
-  scale_shape_manual(values = c(16, 1, 13)) +
-  ggh4x::facet_nested(virus  ~   var ,
-                      labeller = label_wrap_gen(multi_line = T,
-                                                width = 12)) +
-  scale_color_manual(values = c('#66c2a5',
-                                '#fc8d62',
-                                '#8da0cb',
-                                '#e78ac3',
-                                '#a6d854'))+
-  theme_bw()+
-  geom_hline(yintercept = 0, color = "black", linetype = 2) +
-  theme(panel.grid = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = 12),
-        strip.background = element_rect(fill = NA),
-        axis.text.x = element_text(vjust = 0.5,
-                                   angle = 90,
-                                   hjust = 1),
-        axis.text    = element_text(size = 8),
-        axis.title = element_text(size = 15),
-        legend.text  = element_text(size = 8),
-        strip.text = element_text(size = 8)) +
-  labs(y = "Effect on Rt",
-       x = "Temporal lag",
-       color = "PHSM category",
-       shape = "Effect Type",
-       title = "") +
-  guides(color = guide_legend(nrow = 2),
-         shape = guide_legend(nrow = 2))
-
-
-ggsave("figs/figs/max_effect.png",
-       width = 12,
-       height = 6)  
+# ggsave("figs/figs/fig2.png",
+#        width = 12,
+#        height = 6)  
+# 
+# # Max effort
+# effect_data %>% 
+#   filter(scen_grp == "Max") %>%
+#   filter(criterion == "AIC") %>% 
+#   ggplot(.) +
+#   geom_pointrange(aes(x = optim_lag,
+#                       y = estimate,
+#                       ymin = x,
+#                       ymax = xend,
+#                       color = cat,
+#                       shape = stat_sig),
+#                   size = 0.5) +
+#   scale_alpha_manual(values = c(1, 0.5, 0.2)) +
+#   scale_shape_manual(values = c(16, 1, 13)) +
+#   ggh4x::facet_nested(virus  ~   var ,
+#                       labeller = label_wrap_gen(multi_line = T,
+#                                                 width = 12)) +
+#   scale_color_manual(values = c('#66c2a5',
+#                                 '#fc8d62',
+#                                 '#8da0cb',
+#                                 '#e78ac3',
+#                                 '#a6d854'))+
+#   theme_bw()+
+#   geom_hline(yintercept = 0, color = "black", linetype = 2) +
+#   theme(panel.grid = element_blank(),
+#         legend.position = "bottom",
+#         legend.title = element_text(size = 12),
+#         strip.background = element_rect(fill = NA),
+#         axis.text.x = element_text(vjust = 0.5,
+#                                    angle = 90,
+#                                    hjust = 1),
+#         axis.text    = element_text(size = 8),
+#         axis.title = element_text(size = 15),
+#         legend.text  = element_text(size = 8),
+#         strip.text = element_text(size = 8)) +
+#   labs(y = "Effect on Rt",
+#        x = "Temporal lag",
+#        color = "PHSM category",
+#        shape = "Effect Type",
+#        title = "") +
+#   guides(color = guide_legend(nrow = 2),
+#          shape = guide_legend(nrow = 2))
+# 
+# 
+# ggsave("figs/figs/max_effect.png",
+#        width = 12,
+#        height = 6)  
 
 # Model diagnostics 
 
