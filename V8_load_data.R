@@ -3,7 +3,6 @@
 
 # load required packages and functions
 pacman::p_load(tidyverse,
-               here, 
                plm, 
                countrycode, 
                magrittr, 
@@ -27,24 +26,12 @@ pacman::p_load(tidyverse,
 require(covidregionaldata)
 
 # Custom functions for regression exercise
-source(here("aicbic_plm.R"))
-source(here("select_variable.R"))
-source(here("find_lag.R"))
-source(here("plot_all_lags.R"))
-source(here("aicbic_select.R"))
+source("code/util/aicbic_plm.R")
+source("code/util/select_variable.R")
+source("code/util/find_lag.R")
+source("code/util/plot_all_lags.R")
+source("code/util/aicbic_select.R")
 
-# Load full data for analysis 
-# joined <- readRDS("data/joined_all_V8.RDS")
-# joined <- readRDS("data/joined_V9.rds")
-
-#~#~# The following script creates the data used in the analysis (joined_all_V8.RDS) #~#~#
-
-# Only run the following script to see how it was compiled
-
-oxford_data       <- read_csv("data/NPI_OX.csv")    # Oxford government response tracker data for NPIs/PHSMs
-oxford_data_latest <- read_rds("data/oxford_data_latest.rds")
-vaccine_data_owin <- read_csv("data/VAC_OWIN_v2.csv")  # Vaccine coverage data, calculated from script - 
-rt_estimates      <- read_csv("data/rt_EURO.csv")   # Rt estimate data, calculated from script - 
 country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austria","Azerbaijan",
                                             "Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia",
                                             "Cyprus","Czechia","Denmark","Estonia","Finland","France",
@@ -56,6 +43,21 @@ country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austr
                                             "Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine",
                                             "United Kingdom","Uzbekistan")) %>% 
   mutate(iso3c = countrycode::countrycode(CountryName,"country.name","iso3c"))
+
+# Load full data for analysis 
+# joined <- readRDS("data/joined_all_V8.RDS")
+# joined <- readRDS("data/joined_V9.rds")
+
+#~#~# The following script creates the data used in the analysis (joined_all_V8.RDS) #~#~#
+
+# Only run the following script to see how it was compiled
+oxcgrt <- read_csv(file = "https://raw.githubusercontent.com/OxCGRT/covid-policy-tracker/master/data/OxCGRT_nat_latest.csv",
+                   col_names = T)
+oxford_data       <- read_csv("data/NPI_OX.csv")    # Oxford government response tracker data for NPIs/PHSMs
+oxford_data_latest <- read_rds("data/oxford_data_latest.rds")
+vaccine_data_owin <- read_csv("data/VAC_OWIN_v2.csv")  # Vaccine coverage data, calculated from script - 
+rt_estimates      <- read_csv("data/rt_EURO.csv")   # Rt estimate data, calculated from script - 
+
 
 # Build policy_dic, lookup tibble of policy codes and names 
 policy_dic <- colnames(oxford_data) %>% 

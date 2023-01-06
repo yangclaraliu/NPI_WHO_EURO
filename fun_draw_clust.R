@@ -269,4 +269,4 @@ conditions_all %>%
          self_neg == T,
          any_pos == F) 
 
-write_rds(conditions_all, "data/conditions_all.rds")
+# write_rds(conditions_all, "data/conditions_all.rds")

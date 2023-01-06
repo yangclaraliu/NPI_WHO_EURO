@@ -1,119 +1,504 @@
-## Vaccination data 
+read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv") |>
+  filter(iso_code %in% country_index$iso3c) |> 
+  dplyr::select(iso_code, location, date, 
+                "total_vaccinations_per_hundred",             
+                "people_vaccinated_per_hundred",             
+                "people_fully_vaccinated_per_hundred") |> 
+  group_by(iso_code) |> 
+  group_split() |> 
+  map(mutate, 
+      total_vaccinations_per_hundred = imputeTS::na_interpolation(total_vaccinations_per_hundred),
+      people_vaccinated_per_hundred = imputeTS::na_interpolation(people_vaccinated_per_hundred),
+      people_fully_vaccinated_per_hundred = imputeTS::na_interpolation(people_fully_vaccinated_per_hundred)) |> 
+  bind_rows() -> data_vac
 
-# install.packages("MMWRweek")
-# library("MMWRweek")
-
-# WHO Europe country names
-WHO_cty <- c("Albania","Andorra","Armenia","Austria","Azerbaijan",
-             "Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia",
-             "Cyprus","Czechia","Denmark","Estonia","Finland","France",
-             "Georgia","Germany","Greece","Hungary","Iceland","Ireland",
-             "Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania",
-             "Luxembourg","Malta","Moldova","Monaco","Montenegro",
-             "Netherlands","North Macedonia","Norway","Poland","Portugal",
-             "Romania","Russia","San Marino","Serbia","Slovakia","Slovenia",
-             "Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine",
-             "United Kingdom","Uzbekistan")
-
-# Read in Our world in numbers raw vaccination data (Only total population)
-# 52 countries 
-# win_data <- read_csv("data/owid-covid-data.csv")
-win_data <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv")
-
-V1_data <- win_data %>% 
-  select(1,3,4, 42) %>% 
-  mutate(location = if_else(location == "Bosnia and Herzegovina", "Bosnia & Herzegovina", location)) %>% # Change naming of Bosnia to WHO format
-  filter(location %in% WHO_cty) %>% 
-  # filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
-  rename(V1 = people_vaccinated_per_hundred)
-
-# Vector of iso codes for 52 WHO Europe countries
-iso <- V1_data %>% 
-  select(iso_code) %>% 
-  distinct() %>% 
-  pull()
-
-# Function to interpolate NAs from after date of first vaccination
-clean_V1 <- function(i){
-
-tmp <- which(!is.na(V1_data %>% 
-                    filter(iso_code == iso[i]) %>% 
-                    select(V1) %>% 
-                    pull())) %>% 
-      first()
-
-tmp_date <- V1_data %>% 
-  filter(iso_code == iso[i]) %>% 
-  slice(tmp) %>% 
-  select(date) %>% 
-  pull()
-  
-vacc <- V1_data %>% 
-  filter(iso_code == iso[i]) %>% 
-  mutate(V1 = if_else(date < tmp_date, 0, V1)) %>% 
-  mutate(V1 = imputeTS::na_interpolation(V1))
-
-rm(tmp, tmp_date)
-
-return(vacc)
-
-}
- # Bind all countrues together
-V1_cleaned <- map(1:length(iso), clean_V1) %>% 
-  bind_rows()
-
-# Save cleaned as Our World in Numbers vaccine data (2020-01-01 to 2021-09-30)
-V1_cleaned %>% 
-  group_by(location) %>% 
-  mutate(max_cnt = max(V1)) %>% 
-  mutate(V1_adj = V1/max_cnt) %>%
-  select(cnt = iso_code, country = location, date, V_all = V1, V_all_adj = V1_adj) %>% 
-  group_by(country, cnt) %>% 
-  arrange(date) %>% 
-  # complete(., date = seq.Date(as.Date("2020-01-01"), as.Date("2021-09-30"), by = "day")) %>%
-  mutate_if(is.numeric, ~replace_na(., 0)) %>% 
-  ungroup() %>%
-  mutate(V_all = V_all/100) -> V1_cleaned2
-
-V1_cleaned2 %>% 
-  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
-  ggplot(., aes(x = date, y = V_all_adj)) +
-  geom_point() +
-  facet_wrap(~country )
-
-V1_cleaned2  %>% 
-  filter(date >= as.Date("2020-01-01") & date <= as.Date("2021-09-30")) %>% 
-  write_csv(., "data/VAC_OWIN_v2.csv")
+write_csv(data_vac, "data/VAC_OWIN_v2.csv")
 
 #~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~
 
 # Read in WHO raw vaccination data (Age groups included)
 # Only 27 countries
-cov_raw <- read_csv("data/WHO_VAC.csv") %>% 
-  mutate(country = countrycode(ReportingCountry,
-                               origin = "iso2c",
-                               destination = "country.name")) %>% 
-  mutate(cnt = countrycode(country,
-                           origin = "country.name",
-                           destination = "iso3c")) %>% 
-  mutate(region_yes = if_else(ReportingCountry == Region, 1, 0)) %>% 
-  filter(region_yes == 1) %>% 
-  select(week = 1, 4, 7, 11, 13, 14, 15) %>% 
-  filter(TargetGroup == "18-60yr"| TargetGroup == "60+yr"| TargetGroup == "total") %>% 
-  mutate(year = as.double(substr(week, start = 1, stop = 4))) %>% 
-  mutate(week_no = as.double(substr(week, start = 7, stop = 8))) %>% 
-  mutate(date = as.Date(MMWRweek2Date(MMWRyear = year, MMWRweek = week_no, MMWRday = 1))) %>% 
-  group_by(country, week, TargetGroup) %>% 
-  arrange(date) %>% 
-  mutate(sum = sum(DoseFirst)) %>% 
-  filter(row_number()==1) %>% 
-  group_by(country, TargetGroup) %>% 
-  mutate(cum_sum = cumsum(sum)) %>% 
-  mutate(cov_raw = cum_sum/Denominator) %>% 
-  ungroup() %>% 
-  select(date, week, country, cnt,  TargetGroup, cov_raw) %>% 
-  mutate(origin = "WHO") %>% 
-  drop_na(country)
+cov_raw <- read_csv("data/data.csv") |> 
+  mutate(iso3c = countrycode(ReportingCountry,
+                                    origin = "iso2c",
+                                    destination = "iso3c")) |> 
+  filter(iso3c %in% country_index$iso3c) |> 
+  separate(YearWeekISO, sep = "-", into = c("year", "week")) |> 
+  dplyr::select(year, week, iso3c, FirstDose, TargetGroup) |> 
+  group_by(year, week, iso3c, TargetGroup) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  mutate(week = parse_number(week),
+         year = as.numeric(year)) |> 
+  mutate(date = MMWRweek2Date(MMWRyear = year, MMWRweek = week, MMWRday = 1)) |> 
+  group_by(iso3c) |> group_split()
+
+cov_raw_cleaned <- list()
+
+##### Austria #####
+cov_raw[[1]] |> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup)) |> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) |> 
+  mutate(all = adults + `older adults` + children,
+         unknown = 0) -> cov_raw_cleaned[[1]] 
+
+##### Belgium #####
+cov_raw[[2]] |> 
+  dplyr::filter(!TargetGroup %in% c("AgeUNK", "HCW","LTCF", "ALL")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup)) |> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0) |> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[2]] 
+
+##### Bulgaria #####
+cov_raw[[3]] |> 
+  dplyr::filter(!TargetGroup %in% c("HCW","LTCF", "ALL")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup)) |> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = "AgeUNK") |> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[3]] 
+
+##### Cypress #####
+cov_raw[[4]] |> 
+  dplyr::filter(!TargetGroup %in% c("HCW","LTCF", "ALL")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age5_9", "Age10_14", "Age15_17"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0) |> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[4]] 
+
+##### Czech #####
+cov_raw[[5]] |> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF"))|> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0) |> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[5]] 
+
+##### Germany #####
+cov_raw[[6]] |>
+  dplyr::filter(!TargetGroup %in% c("ALL"))|> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("1_Age<60"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("1_Age60+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(adults = adults - children,
+         all = adults + children + `older adults`,
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[6]] 
+
+##### Denmark #####
+cov_raw[[7]] |> 
+  dplyr::filter(!TargetGroup %in% c("HCW","LTCF", "ALL")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age5_9", "Age10_14", "Age15_17", "Age0_4"),
+                               "children",
+                               TargetGroup)) |> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0) |> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[7]] 
+
+##### Spain #####
+cov_raw[[8]] |> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF", "AgeUNK")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[8]] 
+
+##### Estonia #####
+cov_raw[[9]]|> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[9]] 
+
+##### Finland #####
+cov_raw[[10]]|> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF", "AgeUNK")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children, 
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[10]] 
+
+##### France #####
+cov_raw[[11]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[11]] 
+
+##### Croatia #####
+cov_raw[[12]]|> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[12]] 
+
+##### Hungary #####
+cov_raw[[13]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[13]] 
+
+##### Ireland #####
+cov_raw[[14]] |> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[14]] 
+
+
+#### Iceland #####
+cov_raw[[15]]|> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age5_9", "Age10_14", "Age15_17", "Age0_4"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[15]] 
+
+##### Italy #####
+cov_raw[[16]]|> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children,
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[16]] 
+
+##### Liechtenstein #####
+cov_raw[[17]]|> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[17]] 
+
+##### Luxemburg #####
+cov_raw[[18]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age5_9", "Age10_14", "Age15_17", "Age0_4"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children,
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[18]] 
+
+##### Latvia #####
+cov_raw[[19]] |> 
+  dplyr::filter(!TargetGroup %in% c("Age0_4", "Age5_9", "Age10_14", "Age15_17", "ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK)|> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[19]] 
+
+##### Malta #####  
+cov_raw[[20]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK) |> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]]))-> cov_raw_cleaned[[20]] 
+
+##### Netherlands #####
+cov_raw[[21]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age5_9", "Age10_14", "Age15_17", "Age0_4"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  rename(unknown = AgeUNK) |> 
+  mutate(all = adults +  `older adults` + children + unknown)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) -> cov_raw_cleaned[[21]] 
+
+##### Norway #####
+cov_raw[[22]] |> 
+  dplyr::filter(!TargetGroup %in% c("ALL", "HCW", "LTCF")) |> 
+  mutate(TargetGroup = if_else(TargetGroup %in% c("Age18_24", "Age25_49", "Age50_59"),
+                               "adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age60_69", "Age70_79", "Age80+"),
+                               "older adults",
+                               TargetGroup),
+         TargetGroup = if_else(TargetGroup %in% c("Age<18"),
+                               "children",
+                               TargetGroup))|> 
+  group_by(year, week, iso3c, TargetGroup, date) |> 
+  summarise(FirstDose = sum(FirstDose, na.rm = T)) |> 
+  pivot_wider(names_from = TargetGroup,
+              values_from = FirstDose) %>%
+  replace(., is.na(.), 0) |> 
+  mutate(all = adults +  `older adults` + children,
+         unknown = 0)|> 
+  dplyr::select(colnames(cov_raw_cleaned[[1]])) 
+
+
+
+
+
+
 
 # Function to complete and interpolate vaccine TS
 # Remove Germany Liechtenstein & Netherlands as only have total population with no age stratification

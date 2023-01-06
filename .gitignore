@@ -40,4 +40,4 @@ vignettes/*.pdf
 .Rproj.user
 # 
 
-data/joined_v9.rds
+data
