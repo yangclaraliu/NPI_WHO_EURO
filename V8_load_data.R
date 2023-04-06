@@ -9,6 +9,7 @@ pacman::p_load(tidyverse,
                zoo, 
                ggdendro, 
                cowplot, 
+               readxl,
                lubridate,
                data.table,
                pvclust,
@@ -21,8 +22,16 @@ pacman::p_load(tidyverse,
                # covidregionaldata,
                MMWRweek,
                imputeTS,
-               sf)
-#remotes::install_github("epiforecasts/covidregionaldata")
+               qs,
+               sf,
+               tidyverse,
+               EpiNow2, 
+               countrycode, 
+               zoo, 
+               cowplot, 
+               lubridate,
+               covidregionaldata)
+# remotes::install_github("epiforecasts/covidregionaldata")
 require(covidregionaldata)
 
 # Custom functions for regression exercise
@@ -31,6 +40,8 @@ source("code/util/select_variable.R")
 source("code/util/find_lag.R")
 source("code/util/plot_all_lags.R")
 source("code/util/aicbic_select.R")
+
+path_data <- "/Users/yangliu/Library/CloudStorage/Dropbox/Github_Data/NPI_Europe/"
 
 country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austria","Azerbaijan",
                                             "Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia",
@@ -42,7 +53,15 @@ country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austr
                                             "Romania","Russia","San Marino","Serbia","Slovakia","Slovenia",
                                             "Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine",
                                             "United Kingdom","Uzbekistan")) %>% 
-  mutate(iso3c = countrycode::countrycode(CountryName,"country.name","iso3c"))
+  mutate(iso3c = countrycode::countrycode(CountryName,"country.name","iso3c"),
+         cctld = countrycode(CountryName, "country.name", "cctld"),
+         cctld = gsub("\\.","",cctld),
+         cctld = toupper(cctld))
+
+case_data <- read_rds(paste0(path_data, "case_data.rds"))
+rt_estimates <- read_rds(paste0(path_data, "rt_20230404.rds")) %>% 
+  left_join(country_index, by = c("country" = "CountryName")) %>% 
+  dplyr::select(country, iso3c, date, median, mean, lower_90, upper_90, lower_50, upper_50)
 
 # Load full data for analysis 
 # joined <- readRDS("data/joined_all_V8.RDS")
@@ -51,13 +70,25 @@ country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austr
 #~#~# The following script creates the data used in the analysis (joined_all_V8.RDS) #~#~#
 
 # Only run the following script to see how it was compiled
-oxcgrt <- read_csv(file = "https://raw.githubusercontent.com/OxCGRT/covid-policy-tracker/master/data/OxCGRT_nat_latest.csv",
-                   col_names = T)
-oxford_data       <- read_csv("data/NPI_OX.csv")    # Oxford government response tracker data for NPIs/PHSMs
-oxford_data_latest <- read_rds("data/oxford_data_latest.rds")
-vaccine_data_owin <- read_csv("data/VAC_OWIN_v2.csv")  # Vaccine coverage data, calculated from script - 
-rt_estimates      <- read_csv("data/rt_EURO.csv")   # Rt estimate data, calculated from script - 
+# oxcgrt <- read_csv(file = "https://raw.githubusercontent.com/OxCGRT/covid-policy-tracker/master/data/OxCGRT_nat_latest.csv",
+#                    col_names = T)
+oxford_data       <- read_csv(paste0(path_data, "NPI_OX.csv"))    # Oxford government response tracker data for NPIs/PHSMs
+oxford_data_latest <- read_rds(paste0(path_data, "oxford_data_latest.rds"))
+source("V4_vaccine_data.R")
+# vaccine_data_owin <- read_csv(paste0(path_data, "VAC_OWIN_v2.csv"))  # Vaccine coverage data, calculated from script - 
+# rt_estimates      <- read_csv(paste0(path_data, "rt_EURO.csv"))   # Rt estimate data, calculated from script - 
+comix <- qread(paste0(path_data, "20220531_bs_means_2w.qs")) %>% 
+  mutate(panel = factor(panel)) %>% 
+  split(., 1:nrow(.)) %>% 
+  map(mutate, date_range = list(seq(start_date,
+                               end_date,
+                               by = "day"))) %>% 
+  map(unnest, cols = date_range) %>% 
+  bind_rows() %>% 
+  dplyr::select(-start_date, - mid_date, - end_date) %>% 
+  rename(date = date_range)
 
+source("V7_variant_period_plot.R")
 
 # Build policy_dic, lookup tibble of policy codes and names 
 policy_dic <- colnames(oxford_data) %>% 
@@ -81,7 +112,7 @@ policy_dic <- colnames(oxford_data) %>%
          lab = gsub("\\.", " ", policy_name))#
 
 policy_dic_V <- policy_dic %>% 
-  add_row(policy_code = "V_all_adj", 
+  add_row(policy_code = "prop", 
           policy_name = "Vaccine coverage - all population", 
           policy_max = 1, 
           cat = "Vaccination ", 
@@ -149,29 +180,19 @@ policy_data_3 <-  policy_data %>%
   group_by(policy_name) %>% 
   summarise(policy_value_UL = max(value, na.rm = T)) %>% 
   right_join(policy_data, by = "policy_name") %>% 
-  arrange(cnt, policy_name) %>% 
+  arrange(iso3c, policy_name) %>% 
   mutate(policy_value_LL = 0) %>% 
-  select(country, cnt, date, policy_name, value, policy_value_LL, policy_value_UL) %>% 
+  dplyr::select(country, iso3c, date, policy_name, value, policy_value_LL, policy_value_UL) %>% 
   mutate(policy_max = if_else(value < policy_value_UL, 0, 1)) %>% 
   mutate(policy_any = if_else(value > policy_value_LL, 1, 0)) %>% 
-  mutate(country = if_else(country == "Bosnia and Herzegovina", "Bosnia & Herzegovina", country))
-
-# Build other data sets
-rt_estimates <-  rt_estimates %>% 
-  mutate(cnt = countrycode(country, "country.name", "iso3c"),
-         date = lubridate::ymd(date)) %>%
-  as_tibble() %>% 
-  dplyr::select(-country)
-
-vaccine_data_join <- vaccine_data_owin %>% 
-  dplyr::select(-country)
+  mutate(country = if_else(country == "Bosnia and Herzegovina", "Bosnia & Herzegovina", country)) 
 
 # Total country in WHO Europe region, n = 53
 # Check to see if these can be resolved later 
 
-unique(policy_data_3$country) # n = 49,  rm(Turkmenistan, Armenia, Montenegro & North Macedonia)
-unique(rt_estimates$country) # n = 52, rm(Turkmenistan)
-unique(vaccine_data_owin$country)# n = 52, rm(Turkmenistan)
+unique(policy_data_3$country) %>% length() # n = 49,  rm(Turkmenistan, Armenia, Montenegro & North Macedonia)
+unique(rt_estimates$country) %>% length()  # n = 52, rm(Turkmenistan)
+unique(cov$iso3c) %>% length() # n = 52, rm(Turkmenistan)
 
 # Pivot to wide datasets and set factors
 
@@ -180,16 +201,20 @@ joined_any <- policy_data_3 %>%
   dplyr::select(-c(policy_max,
                    policy_value_LL,
                    policy_value_UL,
-                   value)) %>%
+                   value,
+                   country)) %>%
   rename(value = policy_any) %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
-  group_by(cnt, date) %>%
-  left_join(vaccine_data_join,
-            by = c("cnt", "date")) %>%
-  left_join(rt_estimates %>%
-              dplyr::select(-X1),
-            by = c("cnt", "date")) %>%
-  ungroup()
+  group_by(iso3c, date) %>%
+  left_join(cov %>% dplyr::select(-CountryName),
+            by = c("iso3c", "date")) %>%
+  left_join(rt_estimates %>% dplyr::select(-country),
+            by = c("iso3c", "date")) %>%
+  ungroup() %>% 
+  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
+                           date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
+                           date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
+                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
 # 
 # 
 # # Continuous Efforts
@@ -198,15 +223,19 @@ joined_con <- policy_data_3 %>%
                    policy_value_LL,
                    policy_any)) %>%
   mutate(value = value/policy_value_UL) %>%
-  select(-policy_value_UL) %>%
+  dplyr::select(-policy_value_UL) %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
-  group_by(cnt, date) %>%
-  left_join(vaccine_data_join,
-            by = c("cnt", "date")) %>%
+  group_by(iso3c, date) %>%
+  left_join(cov %>% dplyr::select(-CountryName),
+            by = c("iso3c", "date")) %>%
   left_join(rt_estimates %>%
-              dplyr::select(-X1),
-            by = c("cnt", "date")) %>%
-  ungroup()
+              dplyr::select(-country),
+            by = c("iso3c", "date")) %>%
+  ungroup() %>% 
+  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
+                           date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
+                           date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
+                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
 # 
 # # Max effort
 joined_max <- policy_data_3 %>%
@@ -214,15 +243,19 @@ joined_max <- policy_data_3 %>%
                    policy_value_LL,
                    policy_any)) %>%
   mutate(value = policy_max) %>%
-  select(-policy_max) %>%
+  dplyr::select(-policy_max) %>%
   pivot_wider(names_from = policy_name, values_from = value) %>%
-  group_by(cnt, date) %>%
-  left_join(vaccine_data_join,
-            by = c("cnt", "date")) %>%
+  group_by(iso3c, date) %>%
+  left_join(cov %>% dplyr::select(-CountryName),
+            by = c("iso3c", "date")) %>%
   left_join(rt_estimates %>%
-              dplyr::select(-X1),
-            by = c("cnt", "date")) %>%
-  ungroup()
+              dplyr::select(-country),
+            by = c("iso3c", "date")) %>%
+  ungroup() %>% 
+  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
+                           date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
+                           date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
+                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
 # 
 # #check if things makes sense
 # joined_any %>%
@@ -243,25 +276,30 @@ joined_max <- policy_data_3 %>%
 # #~#~#~#~#~#~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
 # ### Sensitivity analysis scenarios mid effort
 # #~#~#~#~##~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
-scenarios <- read_csv("data/milestones.csv") %>%
-  mutate(scenario = paste0("s",scenario)) %>%
-  unite("tag",metric,scenario,phase,remove = F)
+joined <- list(joined_any,
+               joined_con,
+               joined_max) %>% 
+  setNames(c("any", "con", "max"))
 
-joined <- list()
-
-for(i in 1:nrow(scenarios)){
-  if(scenarios$metric[i] == "any") tmp <- joined_any
-  if(scenarios$metric[i] == "con") tmp <- joined_con
-  if(scenarios$metric[i] == "max") tmp <- joined_max
-
-  joined[[scenarios$tag[i]]] <- tmp %>%
-    ungroup %>%
-    filter(date > scenarios$start[i],
-           date <= scenarios$end[i])
-
-}
+# scenarios <- read_csv(paste0(path_data, "milestones.csv")) %>%
+#   mutate(scenario = paste0("s",scenario)) %>%
+#   unite("tag",metric,scenario,phase,remove = F)
 # 
-write_rds(joined, "data/joined_v9.rds")
+# joined <- list()
+# 
+# for(i in 1:nrow(scenarios)){
+#   if(scenarios$metric[i] == "any") tmp <- joined_any
+#   if(scenarios$metric[i] == "con") tmp <- joined_con
+#   if(scenarios$metric[i] == "max") tmp <- joined_max
+# 
+#   joined[[scenarios$tag[i]]] <- tmp %>%
+#     ungroup %>%
+#     filter(date > scenarios$start[i],
+#            date <= scenarios$end[i])
+# 
+# }
+# 
+#  write_rds(joined, "data/joined_v9.rds")
 
 ##### Full TS
 

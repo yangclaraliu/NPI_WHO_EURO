@@ -169,104 +169,104 @@ find_branch <- function(m = NULL,
 
 }
 
-clust_bs %>% map(find_branch) -> all_branches
-
-all_branches %>% 
-  map(enframe) %>% 
-  map(unnest) %>% 
-  map(setNames, c("cluster_index","policy_index")) %>% 
-  bind_rows(.id = "scen") %>% 
-  pivot_wider(names_from = policy_index, values_from = cluster_index) %>% 
-  right_join(data.frame(scen = names(joined)[1:36]), by = "scen") %>% 
-  replace(., is.na(.),0) %>% 
-  pivot_longer(cols = policy_raw_discrete,
-               names_to = "policy_index",
-               values_to = "cluster_index") -> all_branches_cleaned
-
-all_branches_cleaned %>% 
-  mutate(optim_lag = "1 day") %>% 
-  bind_rows(all_branches_cleaned %>% 
-              mutate(optim_lag = "14 days")) %>% 
-  bind_rows(all_branches_cleaned %>% 
-              mutate(optim_lag = "28 days")) %>% 
-  mutate(in_cluster = if_else(cluster_index == 0, F, T),
-         optim_lag = factor(optim_lag)) %>% 
-  full_join(effect_data %>% 
-              filter(criterion == "AIC") %>% 
-              mutate(var_nchar = nchar(var),
-                     var = if_else(var_nchar == 3,
-                                   substr(var,1,2),
-                                   var)) %>% 
-              dplyr::select(var, scen, optim_lag, estimate, "p.value") %>% 
-              rename(policy_index = var),
-            by = c("scen", "policy_index","optim_lag")) %>% 
-  filter(policy_index != "V_all_adj") -> all_branches_combined
-
-all_branches_combined %>% group_by( in_cluster) %>% group_split() -> tmp
-
-tmp[[1]] %>% 
-  mutate(self_pos  = `p.value` <= 0.05 & estimate > 0,
-         self_neg  = `p.value` <= 0.05 & estimate < 0,
-         any_pos = as.logical(NA)) %>% 
-  bind_rows(tmp[[2]] %>% 
-              group_by(scen, cluster_index, optim_lag) %>% 
-              group_split() %>% 
-              map(mutate, self_pos = `p.value` <= 0.05 & estimate > 0) %>% 
-              map(mutate, self_neg = `p.value` <= 0.05 & estimate < 0) %>% 
-              map(mutate, any_pos = any(self_pos == T, na.rm = T)) %>% 
-              map(mutate, n_in_cluster = n()) %>% 
-              bind_rows()) -> tmp
-
-# condition 1 = are they included in the variable selection process?
-joined[1:36] %>% 
-  map(colnames) -> names_all
-
-lapply(1:36, function(x) names_all[[x]][which(names_all[[x]] %in% policy_raw_discrete)]) %>% 
-  map(enframe) %>% 
-  setNames(names(joined[1:36])) %>% 
-  bind_rows(.id = "scenario") %>% 
-  dplyr::select(-name) %>% 
-  mutate(VS_include = T) %>% 
-  pivot_wider(names_from = value, values_from = VS_include) %>% 
-  replace(., is.na(.), F) %>% 
-  pivot_longer(cols = policy_raw_discrete,
-               names_to = "policy_code",
-               values_to = "VS_include") %>% 
-  rename(scen = scenario) -> condition_1
-
-# condition 2 = if they are in the variable selection process, were they selected?
-effect_data %>% 
-  filter(criterion == "AIC",
-         var != "V_all_adj") %>% 
-  mutate(var_new2 = if_else(var_nchar == 3, substr(var,1,2), var)) %>% 
-  dplyr::select(var_new2, scen, optim_lag) %>% 
-  mutate(value = T) %>% 
-  pivot_wider(names_from = var_new2, values_from = value) %>% 
-  replace(., is.na(.), F) %>% 
-  pivot_longer(cols = policy_raw_discrete,
-               names_to = "policy_code",
-               values_to = "VS_select") -> condition_2
-
-condition_1 %>% 
-  right_join(condition_2, by = c("scen", "policy_code")) %>% 
-  rename(policy_index = policy_code) %>% 
-  .[,c(1,2,4,3,5)] -> conditions
-
-conditions %>% 
-  left_join(tmp[,c("scen","policy_index","optim_lag","in_cluster", "self_neg","any_pos","n_in_cluster")],
-            by = c("scen", "policy_index","optim_lag")) %>% 
-  mutate(n_in_cluster = if_else(is.na(n_in_cluster),
-                                as.integer(1),
-                                n_in_cluster),
-         n_in_cluster_score = ((n_in_cluster)*(-1) + 11)/10) %>% 
-  separate(scen, into = c("metric","phase_def","phase"), remove = F) -> conditions_all
-
-
-conditions_all %>% 
-  filter(metric == "con") %>% 
-  filter(VS_include == T,
-         VS_select == T,
-         self_neg == T,
-         any_pos == F) 
+# clust_bs %>% map(find_branch) -> all_branches
+# 
+# all_branches %>% 
+#   map(enframe) %>% 
+#   map(unnest) %>% 
+#   map(setNames, c("cluster_index","policy_index")) %>% 
+#   bind_rows(.id = "scen") %>% 
+#   pivot_wider(names_from = policy_index, values_from = cluster_index) %>% 
+#   right_join(data.frame(scen = names(joined)[1:36]), by = "scen") %>% 
+#   replace(., is.na(.),0) %>% 
+#   pivot_longer(cols = policy_raw_discrete,
+#                names_to = "policy_index",
+#                values_to = "cluster_index") -> all_branches_cleaned
+# 
+# all_branches_cleaned %>% 
+#   mutate(optim_lag = "1 day") %>% 
+#   bind_rows(all_branches_cleaned %>% 
+#               mutate(optim_lag = "14 days")) %>% 
+#   bind_rows(all_branches_cleaned %>% 
+#               mutate(optim_lag = "28 days")) %>% 
+#   mutate(in_cluster = if_else(cluster_index == 0, F, T),
+#          optim_lag = factor(optim_lag)) %>% 
+#   full_join(effect_data %>% 
+#               filter(criterion == "AIC") %>% 
+#               mutate(var_nchar = nchar(var),
+#                      var = if_else(var_nchar == 3,
+#                                    substr(var,1,2),
+#                                    var)) %>% 
+#               dplyr::select(var, scen, optim_lag, estimate, "p.value") %>% 
+#               rename(policy_index = var),
+#             by = c("scen", "policy_index","optim_lag")) %>% 
+#   filter(policy_index != "V_all_adj") -> all_branches_combined
+# 
+# all_branches_combined %>% group_by( in_cluster) %>% group_split() -> tmp
+# 
+# tmp[[1]] %>% 
+#   mutate(self_pos  = `p.value` <= 0.05 & estimate > 0,
+#          self_neg  = `p.value` <= 0.05 & estimate < 0,
+#          any_pos = as.logical(NA)) %>% 
+#   bind_rows(tmp[[2]] %>% 
+#               group_by(scen, cluster_index, optim_lag) %>% 
+#               group_split() %>% 
+#               map(mutate, self_pos = `p.value` <= 0.05 & estimate > 0) %>% 
+#               map(mutate, self_neg = `p.value` <= 0.05 & estimate < 0) %>% 
+#               map(mutate, any_pos = any(self_pos == T, na.rm = T)) %>% 
+#               map(mutate, n_in_cluster = n()) %>% 
+#               bind_rows()) -> tmp
+# 
+# # condition 1 = are they included in the variable selection process?
+# joined[1:36] %>% 
+#   map(colnames) -> names_all
+# 
+# lapply(1:36, function(x) names_all[[x]][which(names_all[[x]] %in% policy_raw_discrete)]) %>% 
+#   map(enframe) %>% 
+#   setNames(names(joined[1:36])) %>% 
+#   bind_rows(.id = "scenario") %>% 
+#   dplyr::select(-name) %>% 
+#   mutate(VS_include = T) %>% 
+#   pivot_wider(names_from = value, values_from = VS_include) %>% 
+#   replace(., is.na(.), F) %>% 
+#   pivot_longer(cols = policy_raw_discrete,
+#                names_to = "policy_code",
+#                values_to = "VS_include") %>% 
+#   rename(scen = scenario) -> condition_1
+# 
+# # condition 2 = if they are in the variable selection process, were they selected?
+# effect_data %>% 
+#   filter(criterion == "AIC",
+#          var != "V_all_adj") %>% 
+#   mutate(var_new2 = if_else(var_nchar == 3, substr(var,1,2), var)) %>% 
+#   dplyr::select(var_new2, scen, optim_lag) %>% 
+#   mutate(value = T) %>% 
+#   pivot_wider(names_from = var_new2, values_from = value) %>% 
+#   replace(., is.na(.), F) %>% 
+#   pivot_longer(cols = policy_raw_discrete,
+#                names_to = "policy_code",
+#                values_to = "VS_select") -> condition_2
+# 
+# condition_1 %>% 
+#   right_join(condition_2, by = c("scen", "policy_code")) %>% 
+#   rename(policy_index = policy_code) %>% 
+#   .[,c(1,2,4,3,5)] -> conditions
+# 
+# conditions %>% 
+#   left_join(tmp[,c("scen","policy_index","optim_lag","in_cluster", "self_neg","any_pos","n_in_cluster")],
+#             by = c("scen", "policy_index","optim_lag")) %>% 
+#   mutate(n_in_cluster = if_else(is.na(n_in_cluster),
+#                                 as.integer(1),
+#                                 n_in_cluster),
+#          n_in_cluster_score = ((n_in_cluster)*(-1) + 11)/10) %>% 
+#   separate(scen, into = c("metric","phase_def","phase"), remove = F) -> conditions_all
+# 
+# 
+# conditions_all %>% 
+#   filter(metric == "con") %>% 
+#   filter(VS_include == T,
+#          VS_select == T,
+#          self_neg == T,
+#          any_pos == F) 
 
 # write_rds(conditions_all, "data/conditions_all.rds")

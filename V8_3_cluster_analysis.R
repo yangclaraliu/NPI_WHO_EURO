@@ -2,151 +2,73 @@
 require(tidyverse)
 require(pvclust)
 require(factoextra)
+require(Hmisc)
+require(ggdendro)
 
-# Read in data if not already done so...
-# joined <- readRDS("data/joined_all_V8.RDS")
-joined <- readRDS("data/joined_v9.rds")
-names(joined)
-
-# Remove vaccination from wild type scenarios, as none occurred
-
-# Full number of countries, no age stratification
 policy_raw_wild <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
-policy_raw_all  <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
+policy_raw_all  <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","prop")
 
-# [START]
-# this needs to be ran only once, and it may take some time
-# this segment conducts the temporal clustering analyses.
+c("hcd_any.rds",
+  "hcd_con.rds",
+  "hcd_max.rds") %>% 
+  map(~paste0(path_data, .)) %>% 
+  map(read_rds) %>% 
+  setNames(c("hcd_any", "hcd_con","hcd_max")) -> clust_bs
 
-# Wild type
-hcd_W <- list()
-set <- names(joined)
+c("distance_any.rds",
+  "distance_con.rds",
+  "distance_max.rds") %>% 
+  map(~paste0(path_data, .)) %>% 
+  map(read_rds) %>% 
+  setNames(c("distance_any", "distance_con","distance_max")) -> distance_all
 
-#### bootstrapping ####
-# for(s in set){
-# 
-#   # find <- grepl("con",s) & (grepl("A|D",s))
-#   tags_tmp <- policy_raw_wild
-#   # if(find) tags_tmp <- policy_raw_all
-# 
-#   hcd_W[[s]] <-
-#     joined %>%
-#     .[!grepl("full", names(.))] %>%
-#     .[grepl(s, names(.))] %>%
-#     map(ungroup) %>%
-#     map(dplyr::select, tags_tmp) %>%
-#     map(pvclust::pvclust,
-#         method.hclust = "ward.D2",
-#         method.dist = "euclidean",
-#         nboot = 5000,
-#         parallel = T)
-# 
-#   print(s)
-# }
+c("corr_any.rds",
+  "corr_con.rds",
+  "corr_max.rds") %>% 
+  map(~paste0(path_data, .)) %>% 
+  map(read_rds) %>% 
+  setNames(c("corr_any", "corr_con","corr_max")) -> corr_all
 
+clust_pruned <- list()
+clust_pruned[["distance_any"]] <- distance_all$distance_any %>% map(hclust) %>% map(cutree, h = 50)
+clust_pruned[["distance_con"]] <- distance_all$distance_con %>% map(hclust) %>% map(cutree, h = 50)
+clust_pruned[["distance_max"]] <- distance_all$distance_max %>% map(hclust) %>% map(cutree, h = 50)
 
-# hcd_W %>% flatten() %>% write_rds(., "data/hcd_W.rds")
-
-clust_bs <- read_rds("data/hcd_W.rds")
-
-#### calculate the euclidean distance ####
-distance_all <- list()
-
-for(s in set[1:36]){
-
-  # find <- grepl("con",s) & (grepl("A|D",s))
-  tags_tmp <- policy_raw_wild
-  # if(find) tags_tmp <- policy_raw_all
-  # 
-  distance_all[[s]] <- joined %>%
-    .[!grepl("full", names(.))] %>% 
-    .[grepl(s, names(.))] %>% 
-    .[[1]] %>% 
-    ungroup %>% 
-    select(., tags_tmp) %>% 
-    t %>% 
-    get_dist(., method = "euclidean")
- 
-  print(s)
-}
-
-#### cut trees ####
 distance_all %>% 
   map(hclust) %>% 
   map(cutree, h = 50) -> clust_pruned
 
-distance_all %<>% 
+distance_melt <- list()
+distance_melt[["any"]] <- distance_all$distance_any %>% 
+  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
   map(as.matrix) %>% 
   map(reshape2::melt) 
 
-#### calculate the correlation ####
-require(Hmisc)
-corr_all <- list()
+distance_melt[["con"]] <- distance_all$distance_con %>% 
+  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
+  map(as.matrix) %>% 
+  map(reshape2::melt) 
 
-for(s in set[1:36]){
-  
-  # find <- grepl("con",s) & (grepl("A|D",s))
-  tags_tmp <- policy_raw_wild
-  # if(find) tags_tmp <- policy_raw_all
-  
-  corr_all[[s]] <- joined %>%
-    .[!grepl("full", names(.))] %>% 
-    .[grepl(s, names(.))] %>% 
-    .[[1]] %>% 
-    ungroup %>% 
-    select(., tags_tmp) %>% 
-    as.matrix %>% 
-    rcorr %>% 
-    .$r %>% 
-    as.matrix %>% 
-    reshape2::melt()
-  
-  print(s)
-}
+distance_melt[["max"]] <- distance_all$distance_max %>% 
+  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
+  map(as.matrix) %>% 
+  map(reshape2::melt) 
 
-#### combine measures ####
-lapply(1:length(distance_all),
-       function(x){
-         distance_all[[x]] %>% 
-           rename(distance = value) %>% 
-           left_join(corr_all[[x]] %>% 
-                       rename(corr = value),
-                     by = c("Var1", "Var2")) %>% 
-           filter(Var1 != Var2) # %>% 
-           # filter(corr >= 0.7)
-       }) %>% 
-  bind_rows() %>% 
-  tibble %>% 
-  ggplot(., aes(x = distance, y = corr)) +
-  geom_point()
+source("fun_draw_clust.R")
+rect_all <- list()
+clust_bs$hcd_any %>% map(gen_rect) -> rect_all[["any"]]
+clust_bs$hcd_con %>% map(gen_rect) -> rect_all[["con"]]
+clust_bs$hcd_max %>% map(gen_rect) -> rect_all[["max"]]
 
+draw_cluster <- function(list_name = "con",
+         phase = 1){
 
-#### generate the rectangles  ####
-# source("fun_draw_clust.R")
-# clust_bs %>%
-#   map(gen_rect) -> rect_all
-# # 
-# write_rds(rect_all, "data/rect_all.rds")
-
-rect_all <- read_rds("data/rect_all.rds")
-
-clust_bs %>%
-  map(gen_rect,
-      max.only = T) -> rect_all_max
-
-write_rds(rect_all_max, "data/rect_all_max.rds")
-
-#### draw dendrogram ####
-require(ggdendro)
-
-for(i in 1:36){
-  dhc <- as.dendrogram(clust_bs[[i]]$hclust)
+  dhc <- as.dendrogram(clust_bs[[paste0("hcd_",list_name)]][[phase]]$hclust)
   ddata <- dendro_data(dhc, type = "rectangle")
   ddata$labels %<>% 
     rename(policy_code = label) %>% 
     left_join(policy_dic_V, by = "policy_code") %>% 
     rename(label = policy_name)
-  
   
   ggplot(segment(ddata)) + 
     geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + 
@@ -162,31 +84,150 @@ for(i in 1:36){
                hjust = 0
     ) +
     geom_hline(yintercept = c(50), size = 1.1)  +
-    geom_rect(data = rect_all[[i]] %>% 
-                mutate(stage = if_else(top >= 50, T, F)),
+    geom_rect(data = rect_all[[list_name]][[phase]] %>% 
+                mutate(stage = if_else(top >= 50, T, F)) %>% 
+                filter(stage == F),
               aes(xmin = left-0.1, xmax = right+0.1,
                   ymin = 0, ymax = top+1, color = stage),
               fill = NA, linetype = 2, size = 0.4)  +
     theme_bw() +
-    scale_fill_manual(values = c('#e78ac3',
-                                 '#66c2a5',
-                                 '#8da0cb',
-                                 '#a6d854',
-                                 '#fc8d62')) +
+    scale_fill_manual(values = c('#e78ac3','#66c2a5','#8da0cb','#a6d854','#fc8d62')) +
     scale_color_manual(values = c("red", "orange")) +
     labs(x = "", y = "Height") +
     theme(legend.position = "none",
           axis.ticks.y = element_blank(),
           axis.text.y = element_blank()) -> p
-  
-  # theme(legend.position = "none") 
-  ggsave(filename = paste0("figs/intermediate/dendrograms/",
-                           names(joined)[i],
-                           ".png"),
-         plot = p,
-         width = 10, height = 6)
-  
+  return(p)
 }
+
+p1 <- draw_cluster(list_name = "con", phase = 1) + labs(title = "Wildtype phase")
+p2 <- draw_cluster(list_name = "con", phase = 2) + labs(title = "Alpha phase")
+p3 <- draw_cluster(list_name = "con", phase = 3) + labs(title = "Delta phase")
+p4 <- draw_cluster(list_name = "con", phase = 4) + labs(title = "Omicron phase")
+
+p <- plot_grid(p1, p2, p3, p4, align = "hv", axis = "tblr", ncol = 2)
+
+ggsave("figs/update_fig3.png",
+       width = 15,
+       height = 15)
+
+# joined$any %>%
+#   group_by(phase) %>%
+#   group_split() -> any
+# any[[5]] <- joined$any
+# any %>%
+#   map(ungroup) %>%
+#   map(arrange, date) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(as.matrix) %>% 
+#   map(rcorr) %>% 
+#   map(~.$r) %>% 
+#   map(as.matrix) %>% 
+#   map(reshape2::melt) -> corr_any
+# write_rds(corr_any, paste0(path_data, "corr_any.rds"))
+# any %>%
+#   map(ungroup) %>%
+#   map(arrange, date) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(t) %>% 
+#   map(factoextra::get_dist,
+#       method = "euclidean") -> distance_any
+# distance_any %>% write_rds(., paste0(path_data, "distance_any.rds"))
+# any %>%
+#   map(arrange, date) %>%
+#   map(ungroup) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#       map(pvclust::pvclust,
+#           method.hclust = "ward.D2",
+#           method.dist = "euclidean",
+#           nboot = 5000,
+#           parallel = T) -> hcd_any
+# hcd_any %>% write_rds(., paste0(path_data, "hcd_any.rds"))
+# joined$con %>%
+#   group_by(phase) %>%
+#   group_split() -> con
+# con[[5]] <- joined$con
+# con %>%
+#   map(ungroup) %>%
+#   map(arrange, date) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(as.matrix) %>% 
+#   map(rcorr) %>% 
+#   map(~.$r) %>% 
+#   map(as.matrix) %>% 
+#   map(reshape2::melt) -> corr_con
+# write_rds(corr_con, paste0(path_data, "corr_con.rds"))
+# con %>% 
+#   map(ungroup) %>% 
+#   map(arrange, date) %>% 
+#   map(dplyr::select, all_of(policy_raw_all)) %>% 
+#   map(t) %>% 
+#   map(factoextra::get_dist,
+#       method = "euclidean") -> distance_con
+# distance_con %>% write_rds(., paste0(path_data, "distance_con.rds"))
+# con %>%
+#   map(arrange, date) %>%
+#   map(ungroup) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(pvclust::pvclust,
+#       method.hclust = "ward.D2",
+#       method.dist = "euclidean",
+#       nboot = 5000,
+#       parallel = T) -> hcd_con
+# hcd_con %>% write_rds(., paste0(path_data, "hcd_con.rds"))
+# joined$max %>%
+#   group_by(phase) %>%
+#   group_split() -> max
+# max[[5]] <- joined$max
+# max %>%
+#   map(ungroup) %>%
+#   map(arrange, date) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(as.matrix) %>%
+#   map(rcorr) %>%
+#   map(~.$r) %>%
+#   map(as.matrix) %>%
+#   map(reshape2::melt) -> corr_max
+# write_rds(corr_max, paste0(path_data, "corr_max.rds"))
+# max %>% 
+#   map(ungroup) %>% 
+#   map(arrange, date) %>% 
+#   map(dplyr::select, all_of(policy_raw_all)) %>% 
+#   map(t) %>% 
+#   map(factoextra::get_dist,
+#       method = "euclidean") -> distance_max
+# distance_max %>% write_rds(., paste0(path_data, "distance_max.rds"))
+# max %>%
+#   map(arrange, date) %>%
+#   map(ungroup) %>%
+#   map(dplyr::select, all_of(policy_raw_all)) %>%
+#   map(pvclust::pvclust,
+#       method.hclust = "ward.D2",
+#       method.dist = "euclidean",
+#       nboot = 5000,
+#       parallel = T) -> hcd_max
+# hcd_max %>% write_rds(., paste0(path_data, "hcd_max.rds"))
+
+#### combine measures ####
+# lapply(1:length(distance_all),
+#        function(x){
+#          distance_all[[x]] %>% 
+#            rename(distance = value) %>% 
+#            left_join(corr_all[[x]] %>% 
+#                        rename(corr = value),
+#                      by = c("Var1", "Var2")) %>% 
+#            filter(Var1 != Var2) # %>% 
+#            # filter(corr >= 0.7)
+#        }) %>% 
+#   bind_rows() %>% 
+#   tibble %>% 
+#   ggplot(., aes(x = distance, y = corr)) +
+#   geom_point()
+
+#### draw dendrogram ####
+
+
+
 
 #                                 '#fc8d62',
 #                                 '#a6d854'

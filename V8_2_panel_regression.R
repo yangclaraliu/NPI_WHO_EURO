@@ -2,23 +2,57 @@
 
 # Read in data if not already done so...
 # joined <- readRDS("data/joined_all_V8.RDS") #[s1_W_mid,s1_A_mid, s1_D_mid, s1_W_max, s1_A_max, s1_D_max]
-joined <- read_rds("data/joined_v9.rds")
+# joined <- read_rds("data/joined_v9.rds")
 
 # Codes for PHSMs investigated 
-policy_raw <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","V_all_adj")
+policy_raw <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","prop")
 policy_raw_discrete <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
 policy_code <- policy_dic$policy_code
 
-# Countries with available data on PHSMs
-joined$any_s1_W %>%
-  dplyr::select(country) %>% 
-  distinct() %>% 
-  mutate(iso3c = countrycode(country, "country.name", "iso3c"),
-         country_name = countrycode(iso3c, "iso3c","country.name"),
-         region = "WHO EUROPE") -> country_list
-
 # codify things as binary variables
-discretize_list <- names(joined)[!(grepl("con|full", names(joined)))]
+joined$con
+f <- paste("median ~", paste(policy_raw, collapse = " + "))
+lapply(c("wildtype", "Alpha", "Delta", "Omicron"),
+       function(x){
+         plm(f, 
+             data = joined$con %>%
+               filter(!is.na(median),
+                      phase == x) %>% 
+               pdata.frame(., index=c("iso3c","date"), drop.index=TRUE, row.names=TRUE) %>% 
+               mutate(median = as.numeric(median)), model = "within") 
+         
+       }) %>% 
+  map(summary) -> model_all
+
+model_all %>% 
+  map(~.$coefficients) %>% 
+  setNames(c("wildtype", "Alpha", "Delta", "Omicron")) %>% 
+  map(data.frame) %>% 
+  map(rownames_to_column, var = "policy_code") %>% 
+  bind_rows(.id = "phase") %>% 
+  mutate(sig = if_else(`Pr...t..` <= 0.05, T, F),
+         CI_LL = Estimate - 1.96*`Std..Error`,
+         CI_UL = Estimate + 1.96*`Std..Error`,
+         phase = factor(phase,
+                        levels = c("wildtype", "Alpha", "Delta", "Omicron"),
+                        labels = c("Wiletype phase", "Alpha phase", "Delta phase", "Omicron phase"))) %>% 
+  left_join(policy_dic_V, by = "policy_code") -> p_tab
+
+p_tab %>% 
+  ggplot(., aes(x = phase, y = Estimate)) +
+  geom_point(aes(shape = sig, color = cat)) +
+  facet_wrap(~policy_name, scales = "free") +
+  scale_shape_manual(values = c(4, 16))
+
+
+
+
+
+
+
+
+
+geom_discretize_list <- names(joined)[!(grepl("con|full", names(joined)))]
 for(i in 1:length(discretize_list)){
   joined[[discretize_list[i]]] %<>% 
     mutate_at(.vars = vars(policy_raw_discrete),
@@ -26,16 +60,8 @@ for(i in 1:length(discretize_list)){
               levels = c(0,1))
 }
 
-# fix missing data in V_all_adj
-vaccination_list <- names(joined)[(grepl("A|D", names(joined), ignore.case = F))]
-for(i in 1:length(vaccination_list)){
-  joined[[vaccination_list[i]]] %<>% 
-    mutate(V_all_adj = if_else(is.na(V_all_adj),0,V_all_adj))
-}
-
 # we need to drop things with only one levels
 for(i in 1:36){
-  
   loc_remove <- rep(F, length(policy_raw))
   for(j in 1:length(policy_raw_discrete)){
     test_res <- joined[[i]][policy_raw_discrete[j]] %>% table
@@ -74,8 +100,6 @@ joined %>% map(ncol)
 #   return(tmp)
 # }
 # 
-
-
 # WHO Region
 # regions_dic <- country_list$region %>% unique %>% sort
 
@@ -532,7 +556,6 @@ r2_data <- lapply(res_tab$select,"[[",3) %>%
 # Wild = 2, 14, 26
 # Alpha = 4, 16, 28
 # Delta = 6, 18, 30
-
 
 # Wild type MAE
 WT_MAE <- chosen_models[c(2)] %>% 
