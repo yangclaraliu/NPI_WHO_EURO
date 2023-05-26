@@ -39,18 +39,40 @@ model_all %>%
   left_join(policy_dic_V, by = "policy_code") -> p_tab
 
 p_tab %>% 
+  mutate(policy_code = factor(policy_code,
+                              levels = policy_dic_V$policy_code,
+                              labels = policy_dic_V$lab)) %>% 
   ggplot(., aes(x = phase, y = Estimate)) +
-  geom_point(aes(shape = sig, color = cat)) +
-  facet_wrap(~policy_name, scales = "free") +
-  scale_shape_manual(values = c(4, 16))
+  geom_point(aes(shape = sig, color = cat), size = 5) +
+  geom_segment(aes(x = phase, xend = phase, y = CI_LL, yend = CI_UL, color = cat)) +
+  geom_hline(yintercept = 0, linetype = 2, color = "grey50") +
+  facet_wrap(~policy_code, scales = "free", ncol = 3) +
+  scale_shape_manual(values = c(4, 16)) +
+  scale_color_manual(values = colors_cat) +
+  scale_x_discrete(labels = c("Wildtype",
+                              ("Alpha"),
+                              ("Delta"),
+                              ("Omicron"))) +
+  labs(shape = "Statistical significance",
+       color = "PHSM category") +
+  theme_cowplot() +
+  theme(#axis.text.x = element_text(angle = 90),
+        legend.position = "none",
+        strip.background = element_rect(fill = NA),
+        panel.border = element_rect(colour = "black", fill=NA, size=0.4)) +
+  labs(x = "Variant phases",
+       y = "Effects") -> p
 
+legend_shape <- get_legend(p + theme(legend.position = "bottom", legend.box = "vertical") + guides(color = FALSE))
+legend_color <- get_legend(p + theme(legend.position = "bottom", legend.box = "vertical") + guides(shape = FALSE,
+                                                                                                   color=guide_legend(nrow = 2,
+                                                                                                                     byrow = FALSE)))
+plot_grid(legend_shape, NULL, legend_color, ncol = 1, rel_heights = c(1,-1,2)) -> p_legend
+plot_grid(p_legend, NULL, p, ncol = 1, rel_heights = c(1,-0.4,10)) -> p_save
 
-
-
-
-
-
-
+ggsave("figs/manuscript_fig4.png",
+       p_save,
+       height = 18, width = 10)
 
 geom_discretize_list <- names(joined)[!(grepl("con|full", names(joined)))]
 for(i in 1:length(discretize_list)){

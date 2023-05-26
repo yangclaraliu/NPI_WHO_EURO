@@ -44,7 +44,6 @@ voc %>%
          date = parse_date_time(paste(year, week, 1, sep = "/"), "Y/W/w"),
          date = if_else(is.na(date), ymd("2020-12-28"), ymd(date))) -> voc
 
-
 lapply(seq(0.05,0.5,0.05),
        function(x){
          voc %>% 

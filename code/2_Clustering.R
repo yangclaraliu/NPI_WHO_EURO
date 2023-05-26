@@ -34,9 +34,9 @@ clust_pruned[["distance_any"]] <- distance_all$distance_any %>% map(hclust) %>% 
 clust_pruned[["distance_con"]] <- distance_all$distance_con %>% map(hclust) %>% map(cutree, h = 50)
 clust_pruned[["distance_max"]] <- distance_all$distance_max %>% map(hclust) %>% map(cutree, h = 50)
 
-distance_all %>% 
-  map(hclust) %>% 
-  map(cutree, h = 50) -> clust_pruned
+distance_all %>%
+  map(., .f = function(x) map(x, hclust)) %>% 
+  map(., .f = function(x) map(x, cutree, h = 50)) -> clust_pruned
 
 distance_melt <- list()
 distance_melt[["any"]] <- distance_all$distance_any %>% 
@@ -54,7 +54,7 @@ distance_melt[["max"]] <- distance_all$distance_max %>%
   map(as.matrix) %>% 
   map(reshape2::melt) 
 
-source("fun_draw_clust.R")
+source("code/util/fun_draw_clust.R")
 rect_all <- list()
 clust_bs$hcd_any %>% map(gen_rect) -> rect_all[["any"]]
 clust_bs$hcd_con %>% map(gen_rect) -> rect_all[["con"]]
@@ -107,9 +107,21 @@ p4 <- draw_cluster(list_name = "con", phase = 4) + labs(title = "Omicron phase")
 
 p <- plot_grid(p1, p2, p3, p4, align = "hv", axis = "tblr", ncol = 2)
 
-ggsave("figs/update_fig3.png",
+ggsave("figs/manuscript_fig3.png",
+       p,
        width = 15,
-       height = 15)
+       height = 10)
+
+# p1 <- draw_cluster(list_name = "max", phase = 1) + labs(title = "Wildtype phase")
+# p2 <- draw_cluster(list_name = "max", phase = 2) + labs(title = "Alpha phase")
+# p3 <- draw_cluster(list_name = "max", phase = 3) + labs(title = "Delta phase")
+# p4 <- draw_cluster(list_name = "max", phase = 4) + labs(title = "Omicron phase")
+# 
+# p <- plot_grid(p1, p2, p3, p4, align = "hv", axis = "tblr", ncol = 2)
+# 
+# ggsave("figs/manuscript_fig3_max.png",
+#        width = 15,
+#        height = 15)
 
 # joined$any %>%
 #   group_by(phase) %>%

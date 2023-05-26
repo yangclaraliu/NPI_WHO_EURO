@@ -61,7 +61,7 @@ country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austr
 case_data <- read_rds(paste0(path_data, "case_data.rds"))
 rt_estimates <- read_rds(paste0(path_data, "rt_20230404.rds")) %>% 
   left_join(country_index, by = c("country" = "CountryName")) %>% 
-  dplyr::select(country, iso3c, date, median, mean, lower_90, upper_90, lower_50, upper_50)
+  dplyr::select(country, iso3c, cctld, date, median, mean, lower_90, upper_90, lower_50, upper_50, sd)
 
 # Load full data for analysis 
 # joined <- readRDS("data/joined_all_V8.RDS")
@@ -74,7 +74,7 @@ rt_estimates <- read_rds(paste0(path_data, "rt_20230404.rds")) %>%
 #                    col_names = T)
 oxford_data       <- read_csv(paste0(path_data, "NPI_OX.csv"))    # Oxford government response tracker data for NPIs/PHSMs
 oxford_data_latest <- read_rds(paste0(path_data, "oxford_data_latest.rds"))
-source("V4_vaccine_data.R")
+source("code/0_1_VaccineData.R")
 # vaccine_data_owin <- read_csv(paste0(path_data, "VAC_OWIN_v2.csv"))  # Vaccine coverage data, calculated from script - 
 # rt_estimates      <- read_csv(paste0(path_data, "rt_EURO.csv"))   # Rt estimate data, calculated from script - 
 comix <- qread(paste0(path_data, "20220531_bs_means_2w.qs")) %>% 
@@ -88,7 +88,7 @@ comix <- qread(paste0(path_data, "20220531_bs_means_2w.qs")) %>%
   dplyr::select(-start_date, - mid_date, - end_date) %>% 
   rename(date = date_range)
 
-source("V7_variant_period_plot.R")
+source("code/0_2_VariantPeriod.R")
 
 # Build policy_dic, lookup tibble of policy codes and names 
 policy_dic <- colnames(oxford_data) %>% 
@@ -256,6 +256,9 @@ joined_max <- policy_data_3 %>%
                            date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
                            date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
                            date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
+
+colors_cat <- c('#e78ac3','#66c2a5','#8da0cb','#a6d854')
+
 # 
 # #check if things makes sense
 # joined_any %>%

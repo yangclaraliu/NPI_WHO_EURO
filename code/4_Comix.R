@@ -4,11 +4,12 @@ comix %>%
          contact_ll = lci,
          contact_ul = uci) %>% 
   mutate(cctld = toupper(cctld)) %>% 
-  left_join(rt[,c("date", "cctld", "mean","median", "sd","country")],
-            by = c("date", "cctld")) %>% 
+  group_by(setting) %>% group_split() %>% 
+  map(left_join, country_index, by = "cctld") %>% 
+  map(left_join, joined$con, by = c("iso3c", "date", "cctld")) %>% 
+  bind_rows() %>% 
   rename(rt_mean = mean,
-         rt_median = median,
-         rt_sd = sd) %>% 
+         rt_median = median) %>% 
   group_by(setting, country) %>% 
   mutate(n = n()) -> tab
 
@@ -22,7 +23,89 @@ tab %>%
   mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
                            date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
                            date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
-                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) -> tab
+                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3]),
+         phase = factor(phase,
+                        levels = c("wildtype",
+                                   "Alpha",
+                                   "Delta",
+                                   "Omicron"))) %>% 
+  mutate_at(vars(unique(policy_dic$policy_code)),
+            .f = function(x) factor(x,
+                                    levels = sort(unlist(unique(tab[deparse(substitute(x))]))),
+                                    ordered = T)) -> tab
+
+formula_interaction <- paste0("contact_mean ~ ", policy_dic$policy_code[1:8], "*phase + setting + iso3c") 
+formula_no_interaction <- paste0("contact_mean ~ ", policy_dic$policy_code[1:8], "+ phase + setting + iso3c") 
+formula_all_no_interaction <- paste0("contact_mean ~ ", paste0(policy_dic$policy_code[1:8], collapse = " + "), "+ phase + setting + iso3c") 
+formula_all_interaction <- paste0("contact_mean ~ ", paste0(paste0(policy_dic$policy_code[1:8], " * phase"), collapse = " + "), " + setting + iso3c") 
+
+glm(data = tab, formula = formula_all_no_interaction) -> model_all_no_interaction
+glm(data = tab, formula = formula_all_interaction) -> model_all_interaction
+lapply(1:length(formula_interaction), function(x) glm(data = tab, formula = formula_interaction[x], family = "Gamma")) -> models_interaction
+lapply(1:length(formula_no_interaction), function(x) glm(data = tab, formula = formula_interaction[x], family = "Gamma")) -> models_no_interaction
+
+summary(model_all_interaction) -> model_all_interaction_summary
+summary(model_all_no_interaction) -> model_all_no_interaction_summary
+
+model_all_interaction_summary$coefficients %>% 
+  data.frame() %>% 
+  mutate(sig = `Pr...t..` <= 0.05) %>% 
+  rownames_to_column() %>% 
+  separate(rowname, into = c("rowname_1","rowname_2"), sep = ":") %>% 
+  mutate(park_test = grepl("phase", rowname_2),
+         park = if_else(park_test == FALSE, rowname_1, rowname_2),
+         park2 = if_else(park_test, rowname_1, rowname_2)) %>% 
+  dplyr::select(-rowname_1, -rowname_2) %>% 
+  mutate(park3 = substr(park2, 1, 2),
+         nc = nchar(park2),
+         park2 = substr(park2, 3, nc),
+         park3_test = is.na(park3)) %>% 
+  dplyr::select(-nc) %>% 
+  group_by(park3_test) %>% group_split() -> model_coef
+
+model_coef[[1]] %>% 
+  rename(policy_code = park3,
+         policy_level = park2,
+         phase = park) %>% 
+  dplyr::select(-park_test, -park3_test) -> results_interactions
+
+
+model_coef[[2]] %>% 
+  mutate(park2 = substr(park, 1, 2)) %>% 
+  dplyr::filter(park2 %in% paste0("C",1:8)) %>% 
+  mutate(nc = nchar(park),
+         park3 = substr(park, 3, nc),
+         phase = "all") %>% 
+  rename(policy_code = park2,
+         policy_level = park3) %>% 
+  dplyr::select(colnames(results_interactions)) -> results_baseline
+
+
+bind_rows(results_baseline, results_interactions) %>% 
+  rename(sd = `Std..Error`) %>% 
+  mutate(phase = factor(phase,
+                        levels = c("all",
+                                   "phaseAlpha",
+                                   "phaseDelta",
+                                   "phaseOmicron"))) %>% 
+  mutate(policy_code = factor(policy_code,
+                              levels = paste0("C",1:8),
+                              labels = policy_dic$lab[1:8])) %>% 
+  ggplot(., aes(x = phase, y = Estimate, color = sig)) +
+  geom_point()+
+  geom_segment(aes(x = phase, xend = phase, y = Estimate - 1.96*sd, yend = Estimate + 1.96*sd))+
+  facet_grid(policy_level~policy_code) +
+  scale_color_manual(values = c("black", "red")) +
+  geom_hline(yintercept = 0)
+
+
+
+
+
+
+
+
+
 
 # ANOVA and TUKEY
 aov_res_rt <- aov(rt_median ~ phase, data = tab %>% mutate(phase = factor(phase, levels = c("wildtype", "Alpha", "Delta", "Omicron"))))

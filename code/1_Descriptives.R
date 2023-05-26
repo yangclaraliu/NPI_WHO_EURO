@@ -72,41 +72,46 @@ p_days_any %>%
                                    "Delta phase",
                                    "Omicron phase")),
          lab = factor(lab,
-                      levels = rev(policy_dic$lab))) %>% 
-  ggplot(., aes(x = lab)) +
+                      levels = (policy_dic$lab))) %>% 
+  ggplot(., aes(x = phase)) +
   geom_bar(aes(y = p_any, fill = cat), stat = "identity", color = "black", alpha = 0.3) +
   geom_bar(aes(y = p_max, fill = cat), stat = "identity", color = "black", alpha = 1) +
-  facet_wrap(~phase, ncol = 1) +
-  coord_flip() +
+  scale_fill_manual(values = colors_cat[1:3]) +
+  facet_wrap(~lab, ncol = 3) +
+  scale_x_discrete(labels = c("Wildtype",
+                              "Alpha",
+                              "Delta",
+                              "Omicron")) +
   theme_cowplot() +
   labs(y = "Average proprotions of days with interventions enacted\nby variant phase",
-       x = "",
+       x = "Variant phases",
        fill = "") +
   theme(strip.background = element_rect(fill = NA, colour = NA),
-        legend.position = "top") -> p
+        legend.position = "top",
+        panel.border = element_rect(colour = "black", fill=NA, size=0.4)) -> p
 
-ggsave("figs/updated_fig1.png",
+ggsave("figs/manuscript_fig1.png",
        p,
-       height = 15,
-       width = 12)
+       height = 18,
+       width = 10)
 
-p_days_any %>% 
-  left_join(p_days_max, by = c("phase", "name")) %>% 
-  mutate(phase = factor(phase,
-                        levels = c("wildtype", "Alpha", "Delta", "Omicron"),
-                        labels = c("Wildtype phase",
-                                   "Alpha phase",
-                                   "Delta phase",
-                                   "Omicron phase"))) %>%
-  left_join(policy_dic, c("name" = "policy_code")) %>% 
-  ggplot(., aes(x = phase, y = p_any, group = name)) +
-  geom_line() 
+# p_days_any %>% 
+#   left_join(p_days_max, by = c("phase", "name")) %>% 
+#   mutate(phase = factor(phase,
+#                         levels = c("wildtype", "Alpha", "Delta", "Omicron"),
+#                         labels = c("Wildtype phase",
+#                                    "Alpha phase",
+#                                    "Delta phase",
+#                                    "Omicron phase"))) %>%
+#   left_join(policy_dic, c("name" = "policy_code")) %>% 
+#   ggplot(., aes(x = phase, y = p_any, group = name)) +
+#   geom_line() 
 
 cov %>% 
   filter(date >= "2020-12-01") %>% 
   ggplot(., aes(x = date, y = prop)) +
   geom_line(aes(group = iso3c), alpha = 0.2) +
-  geom_smooth() +
+  geom_smooth(color = colors_cat[4]) +
   theme_cowplot() +
   labs(y = "Coverage of >=1 dose of COVID-19 vaccine",
        x = "") +
@@ -118,7 +123,7 @@ cov %>%
                 label = paste0(voc_name_short, " phase")),
             angle = 90) -> p
 
-ggsave("figs/updated_fig2.png",
+ggsave("figs/manuscript_fig2.png",
        p,
        height = 6,
        width = 10)
