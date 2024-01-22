@@ -1,9 +1,12 @@
 # The changing impact of non-pharmaceutical interventions on SARS-CoV-2 transmission within the context of variants of concern and increasing vaccination in the WHO European Region
 
-Authors: Charlie Diamond, Richard Pebody, Mark Jit, Yang Liu
+Authors: Yang Liu (1,2), Charlie Diamond (1,2), Sam Abbott (1,2), Kerry Wong (1,2), Tanja Schmidt (3), W. John Edmunds (1,2), Richard Pebody (3), Mark Jit (1,2)
 
-  
-  *Correspondence to: yang.liu@lshtm.ac.uk* 
+1. Department of Infectious Disease Epidemiology, Faculty of Epidemiology and Population Health, London School of Hygiene and Tropical Medicine, London, United Kingdom
+2. Centre for Mathematical Modelling of Infectious Diseases, London School of Hygiene and Tropical Medicine, London, United Kingdom
+3. World Health Organization (WHO) Regional Office for Europe, Copenhagen, Denmark
+
+*Correspondence to: [Yang Liu](mailto:yang.liu@lshtm.ac.uk)* 
   
 ## Abstract  
 
