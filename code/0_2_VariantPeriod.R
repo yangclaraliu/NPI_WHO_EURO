@@ -58,7 +58,8 @@ lapply(seq(0.05,0.5,0.05),
   bind_rows(.id = "threshold") %>% 
   mutate(threshold = as.numeric(threshold)) -> voc_switch
 
-voc_switch_inuse <- voc_switch %>% filter(threshold == 0.3)
+voc_switch_inuse <- voc_switch %>% dplyr::filter(threshold == 0.3)
+voc_switch_list <- voc_switch %>% dplyr::filter(threshold %in% c(0.1, 0.2, 0.3, 0.4, 0.5)) %>% group_by(threshold) %>% group_split()
 
 # VOC_raw_EURO <- VOC_raw %>% 
 #   mutate(cnt = countrycode(location,

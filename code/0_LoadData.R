@@ -14,6 +14,8 @@ pacman::p_load(tidyverse,
                data.table,
                pvclust,
                e1071,
+               factoextra,
+               Hmisc,
                ggdendro,
                progress,
                ggsci,
@@ -43,15 +45,15 @@ source("code/util/aicbic_select.R")
 
 path_data <- "/Users/yangliu/Library/CloudStorage/Dropbox/Github_Data/NPI_Europe/"
 
-country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austria","Azerbaijan",
-                                            "Belarus","Belgium","Bosnia & Herzegovina","Bulgaria","Croatia",
-                                            "Cyprus","Czechia","Denmark","Estonia","Finland","France",
-                                            "Georgia","Germany","Greece","Hungary","Iceland","Ireland",
-                                            "Israel","Italy","Kazakhstan","Kyrgyzstan","Latvia","Lithuania",
-                                            "Luxembourg","Malta","Moldova","Monaco","Montenegro",
-                                            "Netherlands","North Macedonia","Norway","Poland","Portugal",
-                                            "Romania","Russia","San Marino","Serbia","Slovakia","Slovenia",
-                                            "Spain","Sweden","Switzerland","Tajikistan","Turkey","Ukraine",
+country_index <- data.frame(CountryName = c("Albania","Andorra","Armenia","Austria","Azerbaijan","Belarus",
+                                            "Belgium","Bosnia & Herzegovina","Bulgaria","Croatia","Cyprus","Czechia",
+                                            "Denmark","Estonia","Finland","France","Georgia","Germany",
+                                            "Greece","Hungary","Iceland","Ireland","Israel","Italy",
+                                            "Kazakhstan","Kyrgyzstan","Latvia","Lithuania", "Luxembourg","Malta",
+                                            "Moldova","Monaco","Montenegro","Netherlands","North Macedonia","Norway","Poland",
+                                            "Portugal","Romania","Russia","San Marino","Serbia",
+                                            "Slovakia","Slovenia", "Spain","Sweden","Switzerland","Tajikistan",
+                                            "Turkey","Turkmenistan","Ukraine",
                                             "United Kingdom","Uzbekistan")) %>% 
   mutate(iso3c = countrycode::countrycode(CountryName,"country.name","iso3c"),
          cctld = countrycode(CountryName, "country.name", "cctld"),
@@ -197,27 +199,58 @@ unique(cov$iso3c) %>% length() # n = 52, rm(Turkmenistan)
 # Pivot to wide datasets and set factors
 
 # Any Efforts
-joined_any <- policy_data_3 %>%
-  dplyr::select(-c(policy_max,
-                   policy_value_LL,
-                   policy_value_UL,
-                   value,
-                   country)) %>%
-  rename(value = policy_any) %>%
-  pivot_wider(names_from = policy_name, values_from = value) %>%
-  group_by(iso3c, date) %>%
-  left_join(cov %>% dplyr::select(-CountryName),
-            by = c("iso3c", "date")) %>%
-  left_join(rt_estimates %>% dplyr::select(-country),
-            by = c("iso3c", "date")) %>%
-  ungroup() %>% 
-  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
-                           date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
-                           date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
-                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
-# 
-# 
+# joined_any <- policy_data_3 %>%
+#   dplyr::select(-c(policy_max,
+#                    policy_value_LL,
+#                    policy_value_UL,
+#                    value,
+#                    country)) %>%
+#   rename(value = policy_any) %>%
+#   pivot_wider(names_from = policy_name, values_from = value) %>%
+#   group_by(iso3c, date) %>%
+#   left_join(cov %>% dplyr::select(-CountryName),
+#             by = c("iso3c", "date")) %>%
+#   left_join(rt_estimates %>% dplyr::select(-country),
+#             by = c("iso3c", "date")) %>%
+#   ungroup() %>% 
+#   mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "Wildtype",
+#                            date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
+#                            date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
+#                            date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3]),
+#          phase = factor(phase,
+#                         levels = c("Wildtype",
+#                                    "Alpha",
+#                                    "Delta",
+#                                    "Omicron"))) 
+
 # # Continuous Efforts
+generate_con <- function(i){
+  policy_data_3 %>%
+    dplyr::select(-c(policy_max,
+                     policy_value_LL,
+                     policy_any)) %>%
+    mutate(value = value/policy_value_UL) %>%
+    dplyr::select(-policy_value_UL) %>%
+    pivot_wider(names_from = policy_name, values_from = value) %>%
+    group_by(iso3c, date) %>%
+    left_join(cov %>% dplyr::select(-CountryName),
+              by = c("iso3c", "date")) %>%
+    left_join(rt_estimates %>%
+                dplyr::select(-country),
+              by = c("iso3c", "date")) %>%
+    ungroup() %>% 
+    mutate(phase = case_when(date < voc_switch_list[[i]]$date[1] ~ "Wildtype",
+                             date >= voc_switch_list[[i]]$date[1] & date < voc_switch_list[[i]]$date[2] ~ voc_switch_list[[i]]$voc_name_short[1],
+                             date >= voc_switch_list[[i]]$date[2] & date < voc_switch_list[[i]]$date[3] ~ voc_switch_list[[i]]$voc_name_short[2],
+                             date >= voc_switch_list[[i]]$date[3] ~ voc_switch_list[[i]]$voc_name_short[3]),
+           phase = factor(phase,
+                          levels = c("Wildtype",
+                                     "Alpha",
+                                     "Delta",
+                                     "Omicron"))) -> tmp
+  return(tmp)
+}
+
 joined_con <- policy_data_3 %>%
   dplyr::select(-c(policy_max,
                    policy_value_LL,
@@ -232,284 +265,50 @@ joined_con <- policy_data_3 %>%
               dplyr::select(-country),
             by = c("iso3c", "date")) %>%
   ungroup() %>% 
-  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
+  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "Wildtype",
                            date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
                            date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
-                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
+                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3]),
+         phase = factor(phase,
+                        levels = c("Wildtype",
+                                   "Alpha",
+                                   "Delta",
+                                   "Omicron"))) 
 # 
 # # Max effort
-joined_max <- policy_data_3 %>%
-  dplyr::select(-c(policy_value_UL,
-                   policy_value_LL,
-                   policy_any)) %>%
-  mutate(value = policy_max) %>%
-  dplyr::select(-policy_max) %>%
-  pivot_wider(names_from = policy_name, values_from = value) %>%
-  group_by(iso3c, date) %>%
-  left_join(cov %>% dplyr::select(-CountryName),
-            by = c("iso3c", "date")) %>%
-  left_join(rt_estimates %>%
-              dplyr::select(-country),
-            by = c("iso3c", "date")) %>%
-  ungroup() %>% 
-  mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "wildtype",
-                           date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
-                           date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
-                           date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3])) 
+# joined_max <- policy_data_3 %>%
+#   dplyr::select(-c(policy_value_UL,
+#                    policy_value_LL,
+#                    policy_any)) %>%
+#   mutate(value = policy_max) %>%
+#   dplyr::select(-policy_max) %>%
+#   pivot_wider(names_from = policy_name, values_from = value) %>%
+#   group_by(iso3c, date) %>%
+#   left_join(cov %>% dplyr::select(-CountryName),
+#             by = c("iso3c", "date")) %>%
+#   left_join(rt_estimates %>%
+#               dplyr::select(-country),
+#             by = c("iso3c", "date")) %>%
+#   ungroup() %>% 
+#   mutate(phase = case_when(date < voc_switch_inuse$date[1] ~ "Wildtype",
+#                            date >= voc_switch_inuse$date[1] & date < voc_switch_inuse$date[2] ~ voc_switch_inuse$voc_name_short[1],
+#                            date >= voc_switch_inuse$date[2] & date < voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[2],
+#                            date >= voc_switch_inuse$date[3] ~ voc_switch_inuse$voc_name_short[3]),
+#          phase = factor(phase,
+#                         levels = c("Wildtype",
+#                                    "Alpha",
+#                                    "Delta",
+#                                    "Omicron"))) 
 
 colors_cat <- c('#e78ac3','#66c2a5','#8da0cb','#a6d854')
 
-# 
-# #check if things makes sense
-# joined_any %>%
-#   filter(country == "Italy") %>% 
-#   .[1:4] %>% 
-#   rename(C1_any = C1) %>% 
-#   bind_cols(joined_con %>%
-#               filter(country == "Italy") %>% 
-#               .[4]) %>% rename(C1_con = C1) %>% 
-#   bind_cols(joined_max %>%
-#               filter(country == "Italy") %>% 
-#               .[4]) %>% rename(C1_max = C1) %>% 
-#   pivot_longer(starts_with("C1")) %>% 
-#   ggplot(., aes(x = date, y = value, color = name)) +
-#   geom_point() +
-#   facet_wrap(~name,ncol = 1)
-# 
-# #~#~#~#~#~#~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
-# ### Sensitivity analysis scenarios mid effort
-# #~#~#~#~##~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
-joined <- list(joined_any,
-               joined_con,
-               joined_max) %>% 
-  setNames(c("any", "con", "max"))
+joined <- list(joined_con) %>% setNames(c("con"))
+joined_list <- lapply(c(1:5), function(i) generate_con(i))
 
-# scenarios <- read_csv(paste0(path_data, "milestones.csv")) %>%
-#   mutate(scenario = paste0("s",scenario)) %>%
-#   unite("tag",metric,scenario,phase,remove = F)
-# 
-# joined <- list()
-# 
-# for(i in 1:nrow(scenarios)){
-#   if(scenarios$metric[i] == "any") tmp <- joined_any
-#   if(scenarios$metric[i] == "con") tmp <- joined_con
-#   if(scenarios$metric[i] == "max") tmp <- joined_max
-# 
-#   joined[[scenarios$tag[i]]] <- tmp %>%
-#     ungroup %>%
-#     filter(date > scenarios$start[i],
-#            date <= scenarios$end[i])
-# 
-# }
-# 
-#  write_rds(joined, "data/joined_v9.rds")
-
-##### Full TS
-
-# joined_mid_full <- joined_mid %>% 
-#   ungroup()
-# 
-# # S1 - Scaled effort, Wild virus 
-# joined_mid_S1_W <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-11-22"))
-# 
-# # S1 - Scaled effort, Alpha virus 
-# joined_mid_S1_A <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-11-22")) %>% 
-#   filter(date <= as.Date("2021-05-10"))
-# 
-# # S1 - Scaled effort, Delta virus 
-# joined_mid_S1_D <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-10")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 2
-# # S2 - Scaled effort, Wild virus 
-# joined_mid_S2_W <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-12-11"))
-# 
-# # S2 - Scaled effort, Alpha virus 
-# joined_mid_S2_A <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-12-11")) %>% 
-#   filter(date <= as.Date("2021-05-19"))
-# 
-# # S2 - Scaled effort, Delta virus 
-# joined_mid_S2_D <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-19")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 3
-# # S3 - Scaled effort, Wild virus 
-# joined_mid_S3_W <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-12-25"))
-# 
-# # S3 - Scaled effort, Alpha virus 
-# joined_mid_S3_A <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-12-25")) %>% 
-#   filter(date <= as.Date("2021-05-31"))
-# 
-# # S3 - Scaled effort, Delta virus 
-# joined_mid_S3_D <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-31")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 4
-# # S4 - Scaled effort, Wild virus 
-# joined_mid_S4_W <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2021-01-23"))
-# 
-# # S4 - Scaled effort, Alpha virus 
-# joined_mid_S4_A <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-01-23")) %>% 
-#   filter(date <= as.Date("2021-06-13"))
-# 
-# # S4 - Scaled effort, Delta virus 
-# joined_mid_S4_D <- joined_mid %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-06-13")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #~#~#~#~#~#~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
-# ### Sensitivity analysis scenarios max effort
-# #~#~#~#~##~#~#~#~##~#~#~#~##~#~#~#~#~#~#~#~#
-# 
-# ##### Full TS
-# 
-# joined_max_full <- joined_max %>% 
-#   ungroup()
-# 
-# # S1 - Max effort, Wild virus 
-# joined_max_S1_W <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-11-22"))
-# 
-# # S1 - Max effort, Alpha virus 
-# joined_max_S1_A <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-11-22")) %>% 
-#   filter(date <= as.Date("2021-05-10"))
-# 
-# # S1 - Max effort, Delta virus 
-# joined_max_S1_D <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-10")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 2
-# # S2 - Max effort, Wild virus 
-# joined_max_S2_W <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-12-11"))
-# 
-# # S2 - Max effort, Alpha virus 
-# joined_max_S2_A <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-12-11")) %>% 
-#   filter(date <= as.Date("2021-05-19"))
-# 
-# # S2 - Max effort, Delta virus 
-# joined_max_S2_D <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-19")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 3
-# # S3 - Max effort, Wild virus 
-# joined_max_S3_W <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2020-12-25"))
-# 
-# # S3 - Max effort, Alpha virus 
-# joined_max_S3_A <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2020-12-25")) %>% 
-#   filter(date <= as.Date("2021-05-31"))
-# 
-# # S3 - Max effort, Delta virus 
-# joined_max_S3_D <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-05-31")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-# 
-# 
-# #### Sensitivity analysis scenario 4
-# # S4 - Max effort, Wild virus 
-# joined_max_S4_W <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date <= as.Date("2021-01-23"))
-# 
-# # S4 - Max effort, Alpha virus 
-# joined_max_S4_A <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-01-23")) %>% 
-#   filter(date <= as.Date("2021-06-13"))
-# 
-# # S4 - Max effort, Delta virus 
-# joined_max_S4_D <- joined_max %>% 
-#   ungroup() %>% 
-#   filter(date > as.Date("2021-06-13")) %>% 
-#   filter(date <= as.Date("2021-09-30"))
-
-# Save RDS of all scenarios
-# saveRDS(list(s1_full_mid = joined_mid_full,
-#              
-#              s1_W_mid = joined_mid_S1_W,
-#              s1_A_mid = joined_mid_S1_A,
-#              s1_D_mid = joined_mid_S1_D,
-#              
-#              s2_W_mid = joined_mid_S2_W,
-#              s2_A_mid = joined_mid_S2_A,
-#              s2_D_mid = joined_mid_S2_D,
-#              
-#              s3_W_mid = joined_mid_S3_W,
-#              s3_A_mid = joined_mid_S3_A,
-#              s3_D_mid = joined_mid_S3_D,
-#              
-#              s4_W_mid = joined_mid_S4_W,
-#              s4_A_mid = joined_mid_S4_A,
-#              s4_D_mid = joined_mid_S4_D,
-#              
-#              
-#              s1_full_max = joined_max_full,
-#              
-#              s1_W_max = joined_max_S1_W,
-#              s1_A_max = joined_max_S1_A,
-#              s1_D_max = joined_max_S1_D,
-#              
-#              s2_W_max = joined_max_S2_W,
-#              s2_A_max = joined_max_S2_A,
-#              s2_D_max = joined_max_S2_D,
-#              
-#              s3_W_max = joined_max_S3_W,
-#              s3_A_max = joined_max_S3_A,
-#              s3_D_max = joined_max_S3_D,
-#              
-#              s4_W_max = joined_max_S4_W,
-#              s4_A_max = joined_max_S4_A,
-#              s4_D_max = joined_max_S4_D,
-#              
-#              policy_dic = policy_dic_V), 
-#         here("data", "joined_all_V8.RDS"))
-
-# vaccine data
-# vaccine_data_owin %>% 
-#   ggplot(., aes(x = date, y = V_all_adj)) +
-#   geom_line() +
-#   facet_wrap(~country)
+voc_switch_list %>% 
+  map(select, date) %>% 
+  map(add_row, date = c(ymd("2020-01-01"),
+                        ymd("2022-12-31"))) %>% 
+  map(arrange, date) %>% 
+  map(mutate, date_lag = shift(date, 1)) %>% 
+  map(mutate, diff = date - date_lag) -> phase_lengths

@@ -1,99 +1,164 @@
 
-# Script for Figure 1 and Figure S1
-
-# Read in data (if not already done so)
-# joined <- readRDS("data/joined_all_V8.RDS")
-# joined <- readRDS("data/joined_v9.rds")
-
 # Codes for PHSM of interest 
-policy_raw_desc <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
+joined_list[[3]] %>% 
+  dplyr::select(country, iso3c, date, all_of(policy_dic$policy_code), phase) %>% 
+  pivot_longer(cols = policy_dic$policy_code) %>% 
+  group_by(name) %>% group_split() %>% 
+  map(select, name, value) %>% map(distinct) %>% map(arrange, value) %>% 
+  map(mutate, value = factor(round(value, 2))) %>% bind_rows() %>% 
+  rename(policy_code = name) %>% 
+  left_join(policy_dic, by = "policy_code") -> policy_levels
 
-joined_any_S1_W <- joined$any %>% filter(phase == "wildtype")
-joined_any_S1_A <- joined$any %>% filter(phase == "Alpha")
-joined_any_S1_D <- joined$any %>% filter(phase == "Delta")
-joined_any_S1_O <- joined$any %>% filter(phase == "Omicron")
-
-joined_max_S1_W <- joined$max %>% filter(phase == "wildtype")
-joined_max_S1_A <- joined$max %>% filter(phase == "Alpha")
-joined_max_S1_D <- joined$max %>% filter(phase == "Delta")
-joined_max_S1_O <- joined$max %>% filter(phase == "Omicron")
-
-joined_con_S1_W <- joined$con %>% filter(phase == "wildtype")
-joined_con_S1_A <- joined$con %>% filter(phase == "Alpha")
-joined_con_S1_D <- joined$con %>% filter(phase == "Delta")
-joined_con_S1_O <- joined$con %>% filter(phase == "Omicron")
-
-joined$any %>% 
-  dplyr::select(iso3c, date, phase, all_of(policy_raw_desc)) %>% 
-  filter(date >= "2020-01-20") %>% 
-  pivot_longer(cols = policy_raw_desc) %>% 
-  group_by(phase, name, iso3c) %>% 
-  summarise(n_active = sum(value),
-            n_all = sum(n())) %>% 
-  mutate(p_any = n_active/n_all) %>% 
-  dplyr::select(-n_active, -n_all) %>% 
+joined_list[[3]] %>% 
+  dplyr::select(country, iso3c, date, all_of(policy_dic$policy_code), phase) %>% 
+  pivot_longer(cols = policy_dic$policy_code) %>% 
+  group_by(phase, name, value) %>% 
+  tally() %>% 
   group_by(phase, name) %>% 
-  summarise(p_any = mean(p_any)) -> p_days_any
+  mutate(phase_tot = sum(n),
+         phase_prop = n/phase_tot,
+         value = round(value, 2)) %>% 
+  left_join(policy_dic_V, by = c("name" = "policy_code")) %>% 
+  ggplot(., aes(x = phase, y = phase_prop)) +
+  geom_bar(stat = "identity", aes(col = cat, fill = cat)) +
+  scale_color_manual(values = colors_cat) +
+  scale_fill_manual(values = colors_cat) +
+  facet_wrap(~name) +
+  labs(fill = "", col = "") +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 14)) -> p_tmp
+get_legend(p_tmp) -> p_list_legend
 
-joined$max %>% 
-  dplyr::select(iso3c, date, phase, all_of(policy_raw_desc)) %>% 
-  filter(date >= "2020-01-20") %>% 
-  pivot_longer(cols = policy_raw_desc) %>% 
-  group_by(phase, name, iso3c) %>% 
-  summarise(n_active = sum(value),
-            n_all = sum(n())) %>% 
-  mutate(p_max = n_active/n_all) %>% 
-  dplyr::select(-n_active, -n_all) %>% 
-  group_by(phase, name) %>% 
-  summarise(p_max = mean(p_max)) -> p_days_max
 
-p_days_any %>% 
-  left_join(p_days_max, by = c("phase", "name")) %>% 
-  group_by(phase) %>% 
-  summarise(p_any = mean(p_any),
-            p_max = mean(p_max))
+p_list <- list()
+for(i in 1:nrow(policy_dic)){
+  tmp <- policy_dic$policy_code[i]
+  tmp_color <- case_when(policy_dic$cat[i] == "Closure & Containment  " ~ 1,
+                         policy_dic$cat[i] == "Economic Response  " ~ 2,
+                         policy_dic$cat[i] == "Public Health & Health System Response  " ~ 3)
+  
+  joined_list[[3]] %>% 
+    dplyr::select(country, iso3c, date, all_of(policy_dic$policy_code), phase) %>% 
+    pivot_longer(cols = policy_dic$policy_code) %>% 
+    group_by(phase, name, value) %>% 
+    tally() %>% 
+    group_by(phase, name) %>% 
+    mutate(phase_tot = sum(n),
+           phase_prop = n/phase_tot,
+           value = round(value, 2)) %>% 
+    filter(name == tmp) %>% 
+    mutate(value = factor(value,
+                          levels = policy_levels[policy_levels$policy_code == tmp,]$value)) %>% 
+    ggplot(., aes(x = value, y = phase_prop)) +
+    geom_histogram(position = "dodge", 
+                   stat = "identity", 
+                   color = colors_cat[tmp_color],
+                   fill = colors_cat[tmp_color]) +
+    facet_grid(cols = vars(phase)) +
+    labs(x = "Policy intensity",
+         y = "Proportion of countries implementing",
+         title = policy_dic$policy_name[i]) +
+    coord_flip() +
+    theme_cowplot() +
+    scale_y_continuous(breaks = c(0.25, 0.75),
+                       limits = c(0,1)) +
+    theme(strip.background = element_rect(fill = NA),
+          plot.title = element_text(hjust = 0.5),
+          plot.background = element_rect(size = 0.1, colour = "white")) -> p_list[[i]]
+  
+}
+get_legend(p_list[[1]]) 
 
-p_days_any %>% 
-  left_join(p_days_max, by = c("phase", "name")) %>% 
-  group_by(phase) %>% 
-  mutate(p_any_rank = rank(desc(p_any))) %>% 
-  group_by(name) %>% 
-  summarise(p_any_rank = mean(p_any_rank)) %>% 
-  arrange(p_any_rank) %>% 
-  left_join(policy_dic, by = c("name" = "policy_code"))
-
-p_days_any %>% 
-  left_join(p_days_max, by = c("phase", "name")) %>% 
-  left_join(policy_dic, by = c("name" = "policy_code")) %>% 
-  mutate(phase = factor(phase,
-                        levels = c("wildtype", "Alpha", "Delta", "Omicron"),
-                        labels = c("Wildtype phase",
-                                   "Alpha phase",
-                                   "Delta phase",
-                                   "Omicron phase")),
-         lab = factor(lab,
-                      levels = (policy_dic$lab))) %>% 
-  ggplot(., aes(x = phase)) +
-  geom_bar(aes(y = p_any, fill = cat), stat = "identity", color = "black", alpha = 0.3) +
-  geom_bar(aes(y = p_max, fill = cat), stat = "identity", color = "black", alpha = 1) +
-  scale_fill_manual(values = colors_cat[1:3]) +
-  facet_wrap(~lab, ncol = 3) +
-  scale_x_discrete(labels = c("Wildtype",
-                              "Alpha",
-                              "Delta",
-                              "Omicron")) +
-  theme_cowplot() +
-  labs(y = "Average proprotions of days with interventions enacted\nby variant phase",
-       x = "Variant phases",
-       fill = "") +
-  theme(strip.background = element_rect(fill = NA, colour = NA),
-        legend.position = "top",
-        panel.border = element_rect(colour = "black", fill=NA, size=0.4)) -> p
-
+p <- plot_grid(plotlist = p_list, ncol = 2, align = "hv", axis = "tblr")
+p <- plot_grid(p, p_list_legend, ncol = 1, rel_heights = c(12,1))
 ggsave("figs/manuscript_fig1.png",
        p,
-       height = 18,
+       height = 15,
        width = 10)
+
+# joined_any_S1_W <- joined$any %>% filter(phase == "wildtype")
+# joined_any_S1_A <- joined$any %>% filter(phase == "Alpha")
+# joined_any_S1_D <- joined$any %>% filter(phase == "Delta")
+# joined_any_S1_O <- joined$any %>% filter(phase == "Omicron")
+# 
+# joined_max_S1_W <- joined$max %>% filter(phase == "wildtype")
+# joined_max_S1_A <- joined$max %>% filter(phase == "Alpha")
+# joined_max_S1_D <- joined$max %>% filter(phase == "Delta")
+# joined_max_S1_O <- joined$max %>% filter(phase == "Omicron")
+# 
+# joined_con_S1_W <- joined$con %>% filter(phase == "wildtype")
+# joined_con_S1_A <- joined$con %>% filter(phase == "Alpha")
+# joined_con_S1_D <- joined$con %>% filter(phase == "Delta")
+# joined_con_S1_O <- joined$con %>% filter(phase == "Omicron")
+# 
+# joined$any %>% 
+#   dplyr::select(iso3c, date, phase, all_of(policy_raw_desc)) %>% 
+#   filter(date >= "2020-01-20") %>% 
+#   pivot_longer(cols = policy_raw_desc) %>% 
+#   group_by(phase, name, iso3c) %>% 
+#   summarise(n_active = sum(value),
+#             n_all = sum(n())) %>% 
+#   mutate(p_any = n_active/n_all) %>% 
+#   dplyr::select(-n_active, -n_all) %>% 
+#   group_by(phase, name) %>% 
+#   summarise(p_any = mean(p_any)) -> p_days_any
+# 
+# joined$max %>% 
+#   dplyr::select(iso3c, date, phase, all_of(policy_raw_desc)) %>% 
+#   filter(date >= "2020-01-20") %>% 
+#   pivot_longer(cols = policy_raw_desc) %>% 
+#   group_by(phase, name, iso3c) %>% 
+#   summarise(n_active = sum(value),
+#             n_all = sum(n())) %>% 
+#   mutate(p_max = n_active/n_all) %>% 
+#   dplyr::select(-n_active, -n_all) %>% 
+#   group_by(phase, name) %>% 
+#   summarise(p_max = mean(p_max)) -> p_days_max
+# 
+# p_days_any %>% 
+#   left_join(p_days_max, by = c("phase", "name")) %>% 
+#   group_by(phase) %>% 
+#   summarise(p_any = mean(p_any),
+#             p_max = mean(p_max))
+# 
+# p_days_any %>% 
+#   left_join(p_days_max, by = c("phase", "name")) %>% 
+#   group_by(phase) %>% 
+#   mutate(p_any_rank = rank(desc(p_any))) %>% 
+#   group_by(name) %>% 
+#   summarise(p_any_rank = mean(p_any_rank)) %>% 
+#   arrange(p_any_rank) %>% 
+#   left_join(policy_dic, by = c("name" = "policy_code"))
+# 
+# p_days_any %>% 
+#   left_join(p_days_max, by = c("phase", "name")) %>% 
+#   left_join(policy_dic, by = c("name" = "policy_code")) %>% 
+#   mutate(phase = factor(phase,
+#                         levels = c("wildtype", "Alpha", "Delta", "Omicron"),
+#                         labels = c("Wildtype phase",
+#                                    "Alpha phase",
+#                                    "Delta phase",
+#                                    "Omicron phase")),
+#          lab = factor(lab,
+#                       levels = (policy_dic$lab))) %>% 
+#   ggplot(., aes(x = phase)) +
+#   geom_bar(aes(y = p_any, fill = cat), stat = "identity", color = "black", alpha = 0.3) +
+#   geom_bar(aes(y = p_max, fill = cat), stat = "identity", color = "black", alpha = 1) +
+#   scale_fill_manual(values = colors_cat[1:3]) +
+#   facet_wrap(~lab, ncol = 3) +
+#   scale_x_discrete(labels = c("Wildtype",
+#                               "Alpha",
+#                               "Delta",
+#                               "Omicron")) +
+#   theme_cowplot() +
+#   labs(y = "Average proprotions of days with interventions enacted\nby variant phase",
+#        x = "Variant phases",
+#        fill = "") +
+#   theme(strip.background = element_rect(fill = NA, colour = NA),
+#         legend.position = "top",
+#         panel.border = element_rect(colour = "black", fill=NA, size=0.4)) -> p
+
+
 
 # p_days_any %>% 
 #   left_join(p_days_max, by = c("phase", "name")) %>% 
@@ -107,6 +172,12 @@ ggsave("figs/manuscript_fig1.png",
 #   ggplot(., aes(x = phase, y = p_any, group = name)) +
 #   geom_line() 
 
+unique(cov$iso3c) %>% length()
+
+cov %>% 
+  dplyr::filter(date == "2022-12-20",
+                prop <= 0.5) 
+
 cov %>% 
   filter(date >= "2020-12-01") %>% 
   ggplot(., aes(x = date, y = prop)) +
@@ -115,10 +186,38 @@ cov %>%
   theme_cowplot() +
   labs(y = "Coverage of >=1 dose of COVID-19 vaccine",
        x = "") +
-  geom_vline(xintercept = voc_switch_inuse$date,
+  geom_vline(xintercept = voc_switch_list %>% 
+               bind_rows() %>% 
+               dplyr::select(-n, -m, -prop, -week) %>% 
+               pivot_wider(names_from = threshold, values_from =  date) %>% 
+               rename(LL = `0.1`,
+                      UL = `0.5`,
+                      md = `0.3`) %>% 
+               dplyr::select(-`0.2`, -`0.4`) %>% 
+               pull(md),
+             linetype = 1) +
+  geom_vline(xintercept = voc_switch_list %>% 
+               bind_rows() %>% 
+               dplyr::select(-n, -m, -prop, -week) %>% 
+               pivot_wider(names_from = threshold, values_from =  date) %>% 
+               rename(LL = `0.1`,
+                      UL = `0.5`,
+                      md = `0.3`) %>% 
+               dplyr::select(-`0.2`, -`0.4`) %>% 
+               pull(LL),
+             linetype = 2) +
+  geom_vline(xintercept = voc_switch_list %>% 
+               bind_rows() %>% 
+               dplyr::select(-n, -m, -prop, -week) %>% 
+               pivot_wider(names_from = threshold, values_from =  date) %>% 
+               rename(LL = `0.1`,
+                      UL = `0.5`,
+                      md = `0.3`) %>% 
+               dplyr::select(-`0.2`, -`0.4`) %>% 
+               pull(UL),
              linetype = 2) +
   geom_text(data = voc_switch_inuse,
-            aes(x = date+15,
+            aes(x = date+25,
                 y = 0.8,
                 label = paste0(voc_name_short, " phase")),
             angle = 90) -> p

@@ -1,80 +1,82 @@
-# Script for cluster analysis
-require(tidyverse)
-require(pvclust)
-require(factoextra)
-require(Hmisc)
-require(ggdendro)
+read_rds(paste0(path_data, "hcd_con.rds")) %>% 
+  setNames(as.character(seq(0.1,0.5,0.1))) %>% 
+  map(~setNames(., c("wildtype", "Alpha", "Delta", "Omicron", "full")))-> clust_bs
 
-policy_raw_wild <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6")
-policy_raw_all  <- c("C1","C2","C3","C4","C5","C6","C7","C8","E1","E2","H1","H2","H3","H6","prop")
+read_rds(paste0(path_data, "distance_con.rds")) %>% 
+  setNames(as.character(seq(0.1,0.5,0.1))) %>% 
+  map(~setNames(., c("wildtype", "Alpha", "Delta", "Omicron", "full")))-> distance_all
 
-c("hcd_any.rds",
-  "hcd_con.rds",
-  "hcd_max.rds") %>% 
-  map(~paste0(path_data, .)) %>% 
-  map(read_rds) %>% 
-  setNames(c("hcd_any", "hcd_con","hcd_max")) -> clust_bs
+read_rds(paste0(path_data, "corr_con.rds")) %>% 
+  setNames(as.character(seq(0.1,0.5,0.1))) %>% 
+  map(~setNames(., c("wildtype", "Alpha", "Delta", "Omicron", "full")))-> corr_all
 
-c("distance_any.rds",
-  "distance_con.rds",
-  "distance_max.rds") %>% 
-  map(~paste0(path_data, .)) %>% 
-  map(read_rds) %>% 
-  setNames(c("distance_any", "distance_con","distance_max")) -> distance_all
+policy_dic_V %>% 
+  ggplot(., aes(x = policy_code, y = policy_max, color = cat, fill = cat)) +
+  geom_box() +
+  scale_color_manual(values = c('#e78ac3','#66c2a5','#8da0cb','#a6d854'))+
+  scale_fill_manual(values = c('#e78ac3','#66c2a5','#8da0cb','#a6d854')) +
+  labs(color = "", fill = "") +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 14)) -> tmp
+p_legend <- get_legend(tmp)
+rm(tmp)
 
-c("corr_any.rds",
-  "corr_con.rds",
-  "corr_max.rds") %>% 
-  map(~paste0(path_data, .)) %>% 
-  map(read_rds) %>% 
-  setNames(c("corr_any", "corr_con","corr_max")) -> corr_all
+corr_all %>% 
+  map(~map(., filter, Var1 != Var2 & value > 0.3)) %>% 
+  map(~map(., nrow))
 
+pruning_threshold <- c(50, 25, 25, 50)
 clust_pruned <- list()
-clust_pruned[["distance_any"]] <- distance_all$distance_any %>% map(hclust) %>% map(cutree, h = 50)
-clust_pruned[["distance_con"]] <- distance_all$distance_con %>% map(hclust) %>% map(cutree, h = 50)
-clust_pruned[["distance_max"]] <- distance_all$distance_max %>% map(hclust) %>% map(cutree, h = 50)
+clust_pruned[["0.1"]] <- clust_pruned[["0.2"]] <- clust_pruned[["0.3"]] <- clust_pruned[["0.4"]] <- clust_pruned[["0.5"]] <- list()
+clust_pruned[["0.1"]][["wildtype"]] <- cutree(hclust(distance_all$`0.1`$wildtype), h = pruning_threshold[1])
+clust_pruned[["0.2"]][["wildtype"]] <- cutree(hclust(distance_all$`0.2`$wildtype), h = pruning_threshold[1])
+clust_pruned[["0.3"]][["wildtype"]] <- cutree(hclust(distance_all$`0.3`$wildtype), h = pruning_threshold[1])
+clust_pruned[["0.4"]][["wildtype"]] <- cutree(hclust(distance_all$`0.4`$wildtype), h = pruning_threshold[1])
+clust_pruned[["0.5"]][["wildtype"]] <- cutree(hclust(distance_all$`0.5`$wildtype), h = pruning_threshold[1])
 
-distance_all %>%
-  map(., .f = function(x) map(x, hclust)) %>% 
-  map(., .f = function(x) map(x, cutree, h = 50)) -> clust_pruned
+clust_pruned[["0.1"]][["Alpha"]] <- cutree(hclust(distance_all$`0.1`$Alpha), h = pruning_threshold[2])
+clust_pruned[["0.2"]][["Alpha"]] <- cutree(hclust(distance_all$`0.2`$Alpha), h = pruning_threshold[2])
+clust_pruned[["0.3"]][["Alpha"]] <- cutree(hclust(distance_all$`0.3`$Alpha), h = pruning_threshold[2])
+clust_pruned[["0.4"]][["Alpha"]] <- cutree(hclust(distance_all$`0.4`$Alpha), h = pruning_threshold[2])
+clust_pruned[["0.5"]][["Alpha"]] <- cutree(hclust(distance_all$`0.5`$Alpha), h = pruning_threshold[2])
+
+clust_pruned[["0.1"]][["Delta"]] <- cutree(hclust(distance_all$`0.1`$Delta), h = pruning_threshold[3])
+clust_pruned[["0.2"]][["Delta"]] <- cutree(hclust(distance_all$`0.2`$Delta), h = pruning_threshold[3])
+clust_pruned[["0.3"]][["Delta"]] <- cutree(hclust(distance_all$`0.3`$Delta), h = pruning_threshold[3])
+clust_pruned[["0.4"]][["Delta"]] <- cutree(hclust(distance_all$`0.4`$Delta), h = pruning_threshold[3])
+clust_pruned[["0.5"]][["Delta"]] <- cutree(hclust(distance_all$`0.5`$Delta), h = pruning_threshold[3])
+
+clust_pruned[["0.1"]][["Omicron"]] <- cutree(hclust(distance_all$`0.1`$Omicron), h = pruning_threshold[4])
+clust_pruned[["0.2"]][["Omicron"]] <- cutree(hclust(distance_all$`0.2`$Omicron), h = pruning_threshold[4])
+clust_pruned[["0.3"]][["Omicron"]] <- cutree(hclust(distance_all$`0.3`$Omicron), h = pruning_threshold[4])
+clust_pruned[["0.4"]][["Omicron"]] <- cutree(hclust(distance_all$`0.4`$Omicron), h = pruning_threshold[4])
+clust_pruned[["0.5"]][["Omicron"]] <- cutree(hclust(distance_all$`0.5`$Omicron), h = pruning_threshold[4])
 
 distance_melt <- list()
-distance_melt[["any"]] <- distance_all$distance_any %>% 
-  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
-  map(as.matrix) %>% 
-  map(reshape2::melt) 
-
-distance_melt[["con"]] <- distance_all$distance_con %>% 
-  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
-  map(as.matrix) %>% 
-  map(reshape2::melt) 
-
-distance_melt[["max"]] <- distance_all$distance_max %>% 
-  setNames(c("wildtype", "Alpha", "Delta", "Omicron", "full")) %>% 
-  map(as.matrix) %>% 
-  map(reshape2::melt) 
+distance_all %>% 
+  map(~map(., as.matrix)) %>% 
+  map(~map(., reshape2::melt)) -> distance_melt[["con"]] 
 
 source("code/util/fun_draw_clust.R")
-rect_all <- list()
-clust_bs$hcd_any %>% map(gen_rect) -> rect_all[["any"]]
-clust_bs$hcd_con %>% map(gen_rect) -> rect_all[["con"]]
-clust_bs$hcd_max %>% map(gen_rect) -> rect_all[["max"]]
 
-draw_cluster <- function(list_name = "con",
-         phase = 1){
+clust_bs %>% 
+  map(~map(., gen_rect)) -> rect_all
 
-  dhc <- as.dendrogram(clust_bs[[paste0("hcd_",list_name)]][[phase]]$hclust)
+draw_cluster <- function(threshold = "0.3", phase = "wildtype", pt = 50){
+
+  dhc <- as.dendrogram(clust_bs[[threshold]][[phase]]$hclust)
   ddata <- dendro_data(dhc, type = "rectangle")
   ddata$labels %<>% 
     rename(policy_code = label) %>% 
     left_join(policy_dic_V, by = "policy_code") %>% 
     rename(label = policy_name)
-  
+
   ggplot(segment(ddata)) + 
     geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + 
     coord_flip() + 
     scale_y_reverse(expand = expansion(mult = c(0.1, 0.6)), #c(0.2, 0.1), 
-                    limits = c(max(segment(ddata)$y), 0)) + 
+                    limits = c(max(segment(ddata)$y), 0),
+                    breaks = c(0:floor(max(segment(ddata)$y)/50))*50) + 
     geom_label(data = ddata$labels, 
                aes(x = x, y = y, 
                    fill = cat, 
@@ -83,9 +85,9 @@ draw_cluster <- function(list_name = "con",
                # vjust = 0.5, 
                hjust = 0
     ) +
-    geom_hline(yintercept = c(50), size = 1.1)  +
-    geom_rect(data = rect_all[[list_name]][[phase]] %>% 
-                mutate(stage = if_else(top >= 50, T, F)) %>% 
+    geom_hline(yintercept = pt, size = 1.1)  +
+    geom_rect(data = rect_all[[threshold]][[phase]] %>% 
+                mutate(stage = if_else(top >= pt, T, F)) %>% 
                 filter(stage == F),
               aes(xmin = left-0.1, xmax = right+0.1,
                   ymin = 0, ymax = top+1, color = stage),
@@ -100,17 +102,36 @@ draw_cluster <- function(list_name = "con",
   return(p)
 }
 
-p1 <- draw_cluster(list_name = "con", phase = 1) + labs(title = "Wildtype phase")
-p2 <- draw_cluster(list_name = "con", phase = 2) + labs(title = "Alpha phase")
-p3 <- draw_cluster(list_name = "con", phase = 3) + labs(title = "Delta phase")
-p4 <- draw_cluster(list_name = "con", phase = 4) + labs(title = "Omicron phase")
+p1 <- draw_cluster(threshold = "0.3", phase = "wildtype", pt = pruning_threshold[1]) + labs(title = "Wildtype phase") 
+p2 <- draw_cluster(threshold = "0.3", phase = "Alpha", pt = pruning_threshold[2]) + labs(title = "Alpha phase")
+p3 <- draw_cluster(threshold = "0.3", phase = "Delta", pt = pruning_threshold[3]) + labs(title = "Delta phase")
+p4 <- draw_cluster(threshold = "0.3", phase = "Omicron", pt = pruning_threshold[4]) + labs(title = "Omicron phase")
 
 p <- plot_grid(p1, p2, p3, p4, align = "hv", axis = "tblr", ncol = 2)
+p <- plot_grid(p, p_legend, ncol = 1, rel_heights = c(12,1))
 
 ggsave("figs/manuscript_fig3.png",
        p,
        width = 15,
        height = 10)
+
+
+for(m in c("0.1", "0.2", "0.3", "0.4","0.5")){
+  p1 <- draw_cluster(threshold = m, phase = "wildtype", pt = pruning_threshold[1]) + labs(title = "Wildtype phase")
+  p2 <- draw_cluster(threshold = m, phase = "Alpha", pt = pruning_threshold[2]) + labs(title = "Alpha phase")
+  p3 <- draw_cluster(threshold = m, phase = "Delta", pt = pruning_threshold[3]) + labs(title = "Delta phase")
+  p4 <- draw_cluster(threshold = m, phase = "Omicron", pt = pruning_threshold[4]) + labs(title = "Omicron phase")
+  
+  p <- plot_grid(p1, p2, p3, p4, align = "hv", axis = "tblr", ncol = 2)
+  p <- plot_grid(p, p_legend, ncol = 1, rel_heights = c(12,1))
+  
+  ggsave(paste0("figs/manuscript_fig3_",m,".png"),
+         p,
+         width = 15,
+         height = 10)
+  
+}
+
 
 # p1 <- draw_cluster(list_name = "max", phase = 1) + labs(title = "Wildtype phase")
 # p2 <- draw_cluster(list_name = "max", phase = 2) + labs(title = "Alpha phase")
@@ -155,38 +176,7 @@ ggsave("figs/manuscript_fig3.png",
 #           nboot = 5000,
 #           parallel = T) -> hcd_any
 # hcd_any %>% write_rds(., paste0(path_data, "hcd_any.rds"))
-# joined$con %>%
-#   group_by(phase) %>%
-#   group_split() -> con
-# con[[5]] <- joined$con
-# con %>%
-#   map(ungroup) %>%
-#   map(arrange, date) %>%
-#   map(dplyr::select, all_of(policy_raw_all)) %>%
-#   map(as.matrix) %>% 
-#   map(rcorr) %>% 
-#   map(~.$r) %>% 
-#   map(as.matrix) %>% 
-#   map(reshape2::melt) -> corr_con
-# write_rds(corr_con, paste0(path_data, "corr_con.rds"))
-# con %>% 
-#   map(ungroup) %>% 
-#   map(arrange, date) %>% 
-#   map(dplyr::select, all_of(policy_raw_all)) %>% 
-#   map(t) %>% 
-#   map(factoextra::get_dist,
-#       method = "euclidean") -> distance_con
-# distance_con %>% write_rds(., paste0(path_data, "distance_con.rds"))
-# con %>%
-#   map(arrange, date) %>%
-#   map(ungroup) %>%
-#   map(dplyr::select, all_of(policy_raw_all)) %>%
-#   map(pvclust::pvclust,
-#       method.hclust = "ward.D2",
-#       method.dist = "euclidean",
-#       nboot = 5000,
-#       parallel = T) -> hcd_con
-# hcd_con %>% write_rds(., paste0(path_data, "hcd_con.rds"))
+
 # joined$max %>%
 #   group_by(phase) %>%
 #   group_split() -> max

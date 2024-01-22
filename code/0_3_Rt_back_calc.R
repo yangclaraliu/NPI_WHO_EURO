@@ -1,5 +1,13 @@
 options(mc.cores = 4)
 
+case_data <- covidregionaldata::get_national_data(country_index$CountryName, source = "who") %>% 
+  select(date, country, cases_new) 
+
+case_data %>% 
+  ggplot(., aes(x = date, y = cases_new)) +
+  geom_line() +
+  facet_wrap(~country, scales = "free")
+
 # Literature distributions - please reach out if there are others you think should be supported
 generation_time <- get_generation_time(disease = "SARS-CoV-2", source = "ganyani")
 incubation_period <- get_incubation_period(disease = "SARS-CoV-2", source = "lauer")
